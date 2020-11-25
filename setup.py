@@ -13,10 +13,10 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='pierrerouanet',
-    maintainer_email='pierrerouanet@todo.todo',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    maintainer='Pollen-Robotics',
+    maintainer_email='contact@pollen-robotics.com',
+    description='ROS2 Foxy controllers for Reachy',
+    license='Apache License 2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

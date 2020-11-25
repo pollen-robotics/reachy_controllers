@@ -3,9 +3,9 @@
 <package format="3">
   <name>reachy_controllers</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="pierrerouanet@todo.todo">pierrerouanet</maintainer>
-  <license>TODO: License declaration</license>
+  <description>Controllers for Reachy</description>
+  <maintainer email="contact@pollen-robotics.com">Pollen Robotics</maintainer>
+  <license>Apache License 2.0</license>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
