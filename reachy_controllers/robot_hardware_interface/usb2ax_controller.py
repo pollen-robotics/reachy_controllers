@@ -1,7 +1,7 @@
-import numpy as np
+from threading import Thread
+from typing import Dict, List
 
-from typing import List
-from threading import Thread, Event
+import numpy as np
 
 from pypot.dynamixel import DxlIO
 
@@ -9,7 +9,7 @@ from pypot.dynamixel import DxlIO
 from .robot_hardware_interface import RobotHardwareABC
 
 reachy_config = {
-    '/dev/ttyACM0': [
+    '/dev/ttyACM1': [
         ('l_shoulder_pitch', 20, 90.0, True),
         ('l_shoulder_roll', 21, -90.0, False),
         ('l_arm_yaw', 22, 0.0, False),
@@ -19,7 +19,7 @@ reachy_config = {
         ('l_wrist_roll', 26, 0.0, False),
         ('l_gripper', 27, 0.0, True),
     ],
-    '/dev/ttyACM1': [
+    '/dev/ttyACM0': [
         ('r_shoulder_pitch', 10, 90.0, False),
         ('r_shoulder_roll', 11, 90.0, False),
         ('r_arm_yaw', 12, 0.0, False),
@@ -37,6 +37,10 @@ class USB2AXController(RobotHardwareABC):
         self.dxl_controllers = [
             DxlController(port, config) for port, config in reachy_config.items()
         ]
+        self.motor2controller = {}
+        for c in self.dxl_controllers:
+            for motor in c.names:
+                self.motor2controller[motor] = c
 
     def get_joint_names(self) -> List[str]:
         return sum([list(c.names) for c in self.dxl_controllers], [])
@@ -44,33 +48,56 @@ class USB2AXController(RobotHardwareABC):
     def get_joint_positions(self) -> List[float]:
         return sum([list(c.present_positions) for c in self.dxl_controllers], [])
 
+    def set_goal_positions(self, goal_positions: Dict[str, float]) -> None:
+        for name, goal in goal_positions.items():
+            self.motor2controller[name].set_goal_position(name, goal)
+
+    def set_compliance(self, name: str, compliance: bool) -> None:
+        self.motor2controller[name].set_compliance(name, compliance)
+
 
 class DxlController:
     def __init__(self, port, config) -> None:
         self.io = DxlIO(port=port, use_sync_read=True)
         self.names, self.ids, self.offsets, self.directs = zip(*config)
 
-        self.synced = Event()
+        self.motor_index = {name: i for i, name in enumerate(self.names)}
+
+        self.present_positions = self.io.get_present_position(self.ids)
+        self.goal_positions = self.io.get_goal_position(self.ids)
+        self.stiff = self.io.is_torque_enabled(self.ids)
 
         t = Thread(target=self.sync_loop)
         t.daemon = True
         t.start()
 
-        self.synced.wait()
+    def set_compliance(self, name: str, compliance: bool) -> None:
+        self.stiff[self.motor_index[name]] = not compliance
 
-    def sync_loop(self):
+    def set_goal_position(self, name: str, goal_pos: float) -> None:
+        i = self.motor_index[name]
+        self.goal_positions[i] = _to_dxl_pos(goal_pos, self.directs[i], self.offsets[i])
+
+    def sync_loop(self) -> None:
         while True:
             raw_pos = self.io.get_present_position(self.ids)
             self.present_positions = [
-                from_dxl_pos(p, self.directs[i], self.offsets[i])
+                _from_dxl_pos(p, self.directs[i], self.offsets[i])
                 for i, p in enumerate(raw_pos)
             ]
-            self.synced.set()
+
+            goal_positions = {
+                self.ids[i]: goal_pos
+                for i, goal_pos in enumerate(self.goal_positions)
+                if self.stiff[i]
+            }
+            if self.goal_positions:
+                self.io.set_goal_position(goal_positions)
 
 
-def from_dxl_pos(dxl_pos, direct, offset) -> float:
+def _from_dxl_pos(dxl_pos: float, direct: bool, offset: float) -> float:
     return np.deg2rad((dxl_pos if direct else -dxl_pos) - offset)
 
 
-def to_dxl_pos(pos, direct, offset) -> float:
+def _to_dxl_pos(pos: float, direct: bool, offset: float) -> float:
     return (np.rad2deg(pos) + offset) * (1 if direct else -1)

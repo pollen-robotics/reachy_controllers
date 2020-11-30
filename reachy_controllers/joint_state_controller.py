@@ -33,12 +33,23 @@ class JointStateController(Node):
         self.joint_state.name = self.robot_hardware.get_joint_names()
         self.publish_timer = self.create_timer(timer_period_sec=1/rate, callback=self.publish_joint_states)
 
+        self.joint_goal_subscription = self.create_subscription(
+            msg_type=JointState,
+            topic='joint_goals',
+            callback=self.on_joint_goals,
+            qos_profile=5,
+        )
+
     def publish_joint_states(self) -> None:
         """Publish up-to-date JointState msg on /joint_states."""
         self.joint_state.header.stamp = self.clock.now().to_msg()
         self.joint_state.position = self.robot_hardware.get_joint_positions()
 
         self.joint_state_publisher.publish(self.joint_state)
+
+    def on_joint_goals(self, msg: JointState):
+        goal_positions = dict(zip(msg.name, msg.position))
+        self.robot_hardware.set_goal_positions(goal_positions)
 
 
 def main() -> None:
