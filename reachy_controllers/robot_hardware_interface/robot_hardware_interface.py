@@ -16,5 +16,5 @@ class RobotHardwareABC(ABC):
         ...
 
     @abstractmethod
-    def set_compliance(self, name: str, compliance: bool) -> None:
+    def set_compliance(self, compliances: Dict[str, bool]) -> bool:
         ...

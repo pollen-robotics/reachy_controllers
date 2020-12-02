@@ -52,8 +52,14 @@ class USB2AXController(RobotHardwareABC):
         for name, goal in goal_positions.items():
             self.motor2controller[name].set_goal_position(name, goal)
 
-    def set_compliance(self, name: str, compliance: bool) -> None:
-        self.motor2controller[name].set_compliance(name, compliance)
+    def set_compliance(self, compliances: Dict[str, bool]) -> bool:
+        success = True
+
+        for name, compliance in compliances.items():
+            if not self.motor2controller[name].set_compliance(name, compliance):
+                success = False
+
+        return success
 
 
 class DxlController:
@@ -63,20 +69,25 @@ class DxlController:
 
         self.motor_index = {name: i for i, name in enumerate(self.names)}
 
-        self.present_positions = self.io.get_present_position(self.ids)
-        self.goal_positions = self.io.get_goal_position(self.ids)
-        self.stiff = self.io.is_torque_enabled(self.ids)
+        self.present_positions = list(self.io.get_present_position(self.ids))
+        self.goal_positions = list(self.io.get_goal_position(self.ids))
+        self.stiff = list(self.io.is_torque_enabled(self.ids))
+
 
         t = Thread(target=self.sync_loop)
         t.daemon = True
         t.start()
 
-    def set_compliance(self, name: str, compliance: bool) -> None:
-        self.stiff[self.motor_index[name]] = not compliance
+    def set_compliance(self, name: str, compliance: bool) -> bool:
+        i = self.motor_index[name]
+
+        self.goal_positions[i] = self.present_positions[i]
+        self.stiff[i] = not compliance
+
+        return True
 
     def set_goal_position(self, name: str, goal_pos: float) -> None:
-        i = self.motor_index[name]
-        self.goal_positions[i] = _to_dxl_pos(goal_pos, self.directs[i], self.offsets[i])
+        self.goal_positions[self.motor_index[name]] = goal_pos
 
     def sync_loop(self) -> None:
         while True:
@@ -87,12 +98,19 @@ class DxlController:
             ]
 
             goal_positions = {
-                self.ids[i]: goal_pos
+                self.ids[i]: _to_dxl_pos(goal_pos, self.directs[i], self.offsets[i])
                 for i, goal_pos in enumerate(self.goal_positions)
                 if self.stiff[i]
             }
-            if self.goal_positions:
+            if goal_positions:
                 self.io.set_goal_position(goal_positions)
+
+            compliants = [
+                id
+                for i, id in enumerate(self.ids)
+                if not self.stiff[i]
+            ]
+            self.io.disable_torque(compliants)
 
 
 def _from_dxl_pos(dxl_pos: float, direct: bool, offset: float) -> float:

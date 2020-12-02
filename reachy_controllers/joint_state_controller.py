@@ -10,6 +10,8 @@ from rclpy.node import Node
 
 from sensor_msgs.msg import JointState
 
+from reachy_msgs.srv import SetCompliant
+
 from .robot_hardware_interface import RobotHardwareABC
 
 
@@ -40,6 +42,12 @@ class JointStateController(Node):
             qos_profile=5,
         )
 
+        self.set_compliant_srv = self.create_service(
+            srv_type=SetCompliant,
+            srv_name='set_compliant',
+            callback=self.set_compliant,
+        )
+
     def publish_joint_states(self) -> None:
         """Publish up-to-date JointState msg on /joint_states."""
         self.joint_state.header.stamp = self.clock.now().to_msg()
@@ -50,6 +58,13 @@ class JointStateController(Node):
     def on_joint_goals(self, msg: JointState):
         goal_positions = dict(zip(msg.name, msg.position))
         self.robot_hardware.set_goal_positions(goal_positions)
+
+    def set_compliant(self, request, response) -> bool:
+        compliances = dict(zip(request.name, request.compliant))
+        success = self.robot_hardware.set_compliance(compliances)
+
+        response.success = success
+        return response
 
 
 def main() -> None:
