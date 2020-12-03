@@ -1,5 +1,4 @@
 import os
-
 from glob import glob
 
 from setuptools import setup
@@ -17,7 +16,10 @@ setup(
 
         (os.path.join('share', package_name), glob('launch/*.py')),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'reachy_ros_hal',
+    ],
     zip_safe=True,
     maintainer='Pollen-Robotics',
     maintainer_email='contact@pollen-robotics.com',

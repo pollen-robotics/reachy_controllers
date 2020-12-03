@@ -8,11 +8,11 @@ Joint State Controller Node.
 import rclpy
 from rclpy.node import Node
 
-from sensor_msgs.msg import JointState
-
 from reachy_msgs.srv import SetCompliant
 
-from .robot_hardware_interface import RobotHardwareABC
+from reachy_ros_hal.joint import JointDynamixelABC
+
+from sensor_msgs.msg import JointState
 
 
 class JointStateController(Node):
@@ -22,7 +22,7 @@ class JointStateController(Node):
         - publish /joint_states at the specified rate (default: 100Hz)
     """
 
-    def __init__(self, robot_hardware: RobotHardwareABC, rate: float = 100.0) -> None:
+    def __init__(self, robot_hardware: JointDynamixelABC, rate: float = 10000.0) -> None:
         """Set up Node and create publisher."""
         super().__init__('joint_state_controller')
 
@@ -69,12 +69,12 @@ class JointStateController(Node):
 
 def main() -> None:
     """Run joint state controller main loop."""
-    from .robot_hardware_interface.usb2ax_controller import USB2AXController
+    from reachy_mockup_hardware.joint import MockupJointDynamixel
 
     rclpy.init()
 
     joint_state_controller = JointStateController(
-        robot_hardware=USB2AXController(),
+        robot_hardware=MockupJointDynamixel(),
     )
     rclpy.spin(joint_state_controller)
 
