@@ -22,7 +22,7 @@ class JointStateController(Node):
         - publish /joint_states at the specified rate (default: 100Hz)
     """
 
-    def __init__(self, robot_hardware: JointDynamixelABC, rate: float = 10000.0) -> None:
+    def __init__(self, robot_hardware: JointDynamixelABC, rate: float = 100.0) -> None:
         """Set up Node and create publisher."""
         super().__init__('joint_state_controller')
 
@@ -30,7 +30,7 @@ class JointStateController(Node):
 
         self.clock = self.get_clock()
 
-        self.joint_state_publisher = self.create_publisher(JointState, 'joint_states', 5)
+        self.joint_state_publisher = self.create_publisher(JointState, 'joint_states', 1)
         self.joint_state = JointState()
         self.joint_state.name = self.robot_hardware.get_joint_names()
         self.publish_timer = self.create_timer(timer_period_sec=1/rate, callback=self.publish_joint_states)
@@ -39,7 +39,7 @@ class JointStateController(Node):
             msg_type=JointState,
             topic='joint_goals',
             callback=self.on_joint_goals,
-            qos_profile=5,
+            qos_profile=1,
         )
 
         self.set_compliant_srv = self.create_service(
@@ -55,7 +55,7 @@ class JointStateController(Node):
 
         self.joint_state_publisher.publish(self.joint_state)
 
-    def on_joint_goals(self, msg: JointState):
+    def on_joint_goals(self, msg: JointState) -> None:
         goal_positions = dict(zip(msg.name, msg.position))
         self.robot_hardware.set_goal_positions(goal_positions)
 
