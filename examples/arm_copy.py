@@ -45,7 +45,6 @@ class ArmCopy(Node):
         )
         self.joint_goals_publisher = self.create_publisher(JointState, 'joint_goals', 1)
         self.joint_goals = JointState()
-        self.joint_goals.name = self.left_arm
 
         request = SetCompliant.Request()
         request.name = self.left_arm
@@ -66,7 +65,8 @@ class ArmCopy(Node):
 
         for i, (name, pos) in enumerate(zip(joint_state.name, joint_state.position)):
             if name.startswith('r_'):
-                joint_names.append(name.replace('r_', 'l_'))
+                name = f'l_{name[2:]}'
+                joint_names.append(name)
 
                 if name in [
                     'r_shoulder_roll',
@@ -80,6 +80,7 @@ class ArmCopy(Node):
                     joint_goals.append(pos)
 
         self.joint_goals.header.stamp = self.clock.now().to_msg()
+        self.joint_goals.name = joint_names
         self.joint_goals.position = joint_goals
 
         self.joint_goals_publisher.publish(self.joint_goals)
