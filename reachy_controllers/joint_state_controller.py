@@ -9,7 +9,7 @@ The access to the hardware is done through an HAL.
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.msg import JointTemperature
+from reachy_msgs.msg import JointTemperature, ForceGripper
 from reachy_msgs.srv import GetJointsFullState, SetCompliant
 
 from reachy_ros_hal.joint import JointABC
@@ -22,12 +22,14 @@ class JointStateController(Node):
 
     def __init__(self, robot_hardware: JointABC,
                  state_pub_rate: float = 100.0, temp_pub_rate: float = 0.1,
+                 fg_pub_rate: float = 0.1
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
 
         Topic:
             - publish /joint_states at the specified rate (default: 100Hz)
             - publish /joint_temperatures at the specified rate (default: 0.1Hz)
+            - publish /force_gripper at the specified rate (default: 0.1Hz)
             - subscribe to /joint_goals and forward the pos/vel/eff to the associated hal
 
         Service:
@@ -67,6 +69,19 @@ class JointStateController(Node):
             callback=self.publish_joint_temperatures,
         )
 
+        self.force_gripper_publisher = self.create_publisher(
+            msg_type=ForceGripper,
+            topic='force_gripper',
+            qos_profile=1
+        )
+
+        self.force_gripper = ForceGripper()
+        self.force_gripper.side = ['right', 'left']
+        self.force_gripper_pub_timer = self.create_timer(
+            timer_period_sec=1/fg_pub_rate,
+            callback=self.publish_force_gripper
+        )
+
         self.joint_goal_subscription = self.create_subscription(
             msg_type=JointState,
             topic='joint_goals',
@@ -103,6 +118,14 @@ class JointStateController(Node):
             self.joint_temperature.temperature[i].temperature = float(temp)
 
         self.joint_temperature_publisher.publish(self.joint_temperature)
+
+    def publish_force_gripper(self) -> None:
+        """Publish force gripper sensor values for both arm on /force_gripper."""
+        self.force_gripper.header.stamp = self.clock.now().to_msg()
+
+        self.force_gripper.load_sensor = [self.robot_hardware.get_grip_force(s) for s in self.force_gripper.side]
+
+        self.force_gripper_publisher.publish(self.force_gripper)
 
     def on_joint_goals(self, msg: JointState) -> None:
         """Handle new JointState goal by calling the robot hardware abstraction."""
