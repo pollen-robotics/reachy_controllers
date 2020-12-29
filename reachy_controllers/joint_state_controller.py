@@ -45,6 +45,7 @@ class JointStateController(Node):
 
         self.clock = self.get_clock()
 
+        self.logger.info(f'Setup "/joint_states" publisher ({state_pub_rate:.1f}Hz).')
         self.joint_state_publisher = self.create_publisher(
             msg_type=JointState,
             topic='joint_states',
@@ -57,6 +58,7 @@ class JointStateController(Node):
             callback=self.publish_joint_states,
         )
 
+        self.logger.info(f'Setup "/joint_temperatures" publisher ({temp_pub_rate:.1f}Hz).')
         self.joint_temperature_publisher = self.create_publisher(
             msg_type=JointTemperature,
             topic='joint_temperatures',
@@ -70,6 +72,7 @@ class JointStateController(Node):
             callback=self.publish_joint_temperatures,
         )
 
+        self.logger.info('Subscribe to "/joint_goals".')
         self.joint_goal_subscription = self.create_subscription(
             msg_type=JointState,
             topic='joint_goals',
@@ -77,12 +80,14 @@ class JointStateController(Node):
             qos_profile=1,
         )
 
+        self.logger.info('Create "/get_joint_full_state" service.')
         self.get_joint_full_state_srv = self.create_service(
             srv_type=GetJointsFullState,
             srv_name='get_joint_full_state',
             callback=self.get_joint_full_state,
         )
 
+        self.logger.info('Create "/set_compliant" service.')
         self.set_compliant_srv = self.create_service(
             srv_type=SetCompliant,
             srv_name='set_compliant',
