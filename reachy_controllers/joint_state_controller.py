@@ -5,6 +5,7 @@ Exposes all joints related information (pos/speed/load/temp).
 The access to the hardware is done through an HAL.
 
 """
+from typing import Type
 
 import rclpy
 from rclpy.node import Node
@@ -20,7 +21,7 @@ from sensor_msgs.msg import JointState, Temperature
 class JointStateController(Node):
     """Joint State Controller Node."""
 
-    def __init__(self, robot_hardware: JointABC,
+    def __init__(self, robot_hardware: Type[JointABC],
                  state_pub_rate: float = 100.0, temp_pub_rate: float = 0.1,
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
@@ -37,7 +38,9 @@ class JointStateController(Node):
         """
         super().__init__('joint_state_controller')
 
-        self.robot_hardware = robot_hardware
+        self.logger = self.get_logger()
+
+        self.robot_hardware = robot_hardware(self.logger)
         self.joint_names = self.robot_hardware.get_all_joint_names()
 
         self.clock = self.get_clock()
@@ -138,12 +141,13 @@ class JointStateController(Node):
 
 def main() -> None:
     """Run joint state controller main loop."""
-    from reachy_mockup_hardware.joint import MockupJointDynamixel
+    # from reachy_mockup_hardware.joint import MockupJointDynamixel
+    from reachy_pyluos_hal.joint import JointPyluos
 
     rclpy.init()
 
     joint_state_controller = JointStateController(
-        robot_hardware=MockupJointDynamixel(),
+        robot_hardware=JointPyluos,
     )
     rclpy.spin(joint_state_controller)
 
