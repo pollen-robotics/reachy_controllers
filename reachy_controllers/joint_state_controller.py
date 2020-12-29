@@ -94,6 +94,8 @@ class JointStateController(Node):
             callback=self.set_compliant,
         )
 
+        self.logger.info('Node ready!')
+
     def publish_joint_states(self) -> None:
         """Publish up-to-date JointState msg on /joint_states."""
         self.joint_state.header.stamp = self.clock.now().to_msg()
