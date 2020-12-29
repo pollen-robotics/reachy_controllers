@@ -49,7 +49,7 @@ class JointStateController(Node):
         self.joint_state_publisher = self.create_publisher(
             msg_type=JointState,
             topic='joint_states',
-            qos_profile=1,
+            qos_profile=5,
         )
         self.joint_state = JointState()
         self.joint_state.name = self.joint_names
@@ -62,7 +62,7 @@ class JointStateController(Node):
         self.joint_temperature_publisher = self.create_publisher(
             msg_type=JointTemperature,
             topic='joint_temperatures',
-            qos_profile=1,
+            qos_profile=5,
         )
         self.joint_temperature = JointTemperature()
         self.joint_temperature.name = self.joint_names
@@ -77,7 +77,7 @@ class JointStateController(Node):
             msg_type=JointState,
             topic='joint_goals',
             callback=self.on_joint_goals,
-            qos_profile=1,
+            qos_profile=5,
         )
 
         self.logger.info('Create "/get_joint_full_state" service.')
