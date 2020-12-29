@@ -97,9 +97,18 @@ class JointStateController(Node):
     def publish_joint_states(self) -> None:
         """Publish up-to-date JointState msg on /joint_states."""
         self.joint_state.header.stamp = self.clock.now().to_msg()
-        self.joint_state.position = self.robot_hardware.get_joint_positions(self.joint_names)
-        self.joint_state.velocity = self.robot_hardware.get_joint_velocities(self.joint_names)
-        self.joint_state.effort = self.robot_hardware.get_joint_efforts(self.joint_names)
+
+        positions = self.robot_hardware.get_joint_positions(self.joint_names)
+        if positions is not None:
+            self.joint_state.position = positions
+
+        velocities = self.robot_hardware.get_joint_velocities(self.joint_names)
+        if velocities is not None:
+            self.joint_state.velocity = velocities
+
+        efforts = self.robot_hardware.get_joint_efforts(self.joint_names)
+        if efforts is not None:
+            self.joint_state.effort = efforts
 
         self.joint_state_publisher.publish(self.joint_state)
 
@@ -114,9 +123,12 @@ class JointStateController(Node):
 
     def on_joint_goals(self, msg: JointState) -> None:
         """Handle new JointState goal by calling the robot hardware abstraction."""
-        self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
-        self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
-        self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
+        if msg.position:
+            self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
+        if msg.velocity:
+            self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
+        if msg.effort:
+            self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
 
     def get_joint_full_state(self,
                              request: GetJointsFullState.Request,
@@ -124,9 +136,19 @@ class JointStateController(Node):
                              ) -> GetJointsFullState.Response:
         """Handle GetJointsFullState service request."""
         response.name = self.joint_names
-        response.present_position = self.robot_hardware.get_joint_positions(self.joint_names)
-        response.present_speed = self.robot_hardware.get_joint_velocities(self.joint_names)
-        response.present_load = self.robot_hardware.get_joint_efforts(self.joint_names)
+
+        positions = self.robot_hardware.get_joint_positions(self.joint_names)
+        if positions:
+            response.present_position = positions
+
+        velocities = self.robot_hardware.get_joint_velocities(self.joint_names)
+        if velocities:
+            response.present_speed = velocities
+
+        efforts = self.robot_hardware.get_joint_efforts(self.joint_names)
+        if efforts:
+            response.present_load = efforts
+
         response.temperature = self.robot_hardware.get_joint_temperatures(self.joint_names)
         response.compliant = self.robot_hardware.get_compliant(self.joint_names)
         response.goal_position = self.robot_hardware.get_goal_positions(self.joint_names)
