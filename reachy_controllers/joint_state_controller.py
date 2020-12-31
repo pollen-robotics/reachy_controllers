@@ -5,6 +5,7 @@ Exposes all joints related information (pos/speed/load/temp).
 The access to the hardware is done through an HAL.
 
 """
+from typing import Type
 
 import rclpy
 from rclpy.node import Node
@@ -20,8 +21,9 @@ from sensor_msgs.msg import JointState, Temperature
 class JointStateController(Node):
     """Joint State Controller Node."""
 
-    def __init__(self, robot_hardware: JointABC,
-                 state_pub_rate: float = 100.0, temp_pub_rate: float = 0.1,
+    def __init__(self, robot_hardware: Type[JointABC],
+                 state_pub_rate: float = 100.0, 
+                 temp_pub_rate: float = 0.1,
                  fg_pub_rate: float = 0.1
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
@@ -39,15 +41,18 @@ class JointStateController(Node):
         """
         super().__init__('joint_state_controller')
 
-        self.robot_hardware = robot_hardware
+        self.logger = self.get_logger()
+
+        self.robot_hardware = robot_hardware(self.logger)
         self.joint_names = self.robot_hardware.get_all_joint_names()
 
         self.clock = self.get_clock()
 
+        self.logger.info(f'Setup "/joint_states" publisher ({state_pub_rate:.1f}Hz).')
         self.joint_state_publisher = self.create_publisher(
             msg_type=JointState,
             topic='joint_states',
-            qos_profile=1,
+            qos_profile=5,
         )
         self.joint_state = JointState()
         self.joint_state.name = self.joint_names
@@ -56,10 +61,11 @@ class JointStateController(Node):
             callback=self.publish_joint_states,
         )
 
+        self.logger.info(f'Setup "/joint_temperatures" publisher ({temp_pub_rate:.1f}Hz).')
         self.joint_temperature_publisher = self.create_publisher(
             msg_type=JointTemperature,
             topic='joint_temperatures',
-            qos_profile=1,
+            qos_profile=5,
         )
         self.joint_temperature = JointTemperature()
         self.joint_temperature.name = self.joint_names
@@ -69,12 +75,12 @@ class JointStateController(Node):
             callback=self.publish_joint_temperatures,
         )
 
+        self.logger.info(f'Setup "/force_gripper" publisher ({fg_pub_rate:.1f}Hz).')
         self.force_gripper_publisher = self.create_publisher(
             msg_type=ForceGripper,
             topic='force_gripper',
-            qos_profile=1
+            qos_profile=5,
         )
-
         self.force_gripper = ForceGripper()
         self.force_gripper.side = ['right', 'left']
         self.force_gripper_pub_timer = self.create_timer(
@@ -82,31 +88,45 @@ class JointStateController(Node):
             callback=self.publish_force_gripper
         )
 
+        self.logger.info('Subscribe to "/joint_goals".')
         self.joint_goal_subscription = self.create_subscription(
             msg_type=JointState,
             topic='joint_goals',
             callback=self.on_joint_goals,
-            qos_profile=1,
+            qos_profile=5,
         )
 
+        self.logger.info('Create "/get_joint_full_state" service.')
         self.get_joint_full_state_srv = self.create_service(
             srv_type=GetJointsFullState,
             srv_name='get_joint_full_state',
             callback=self.get_joint_full_state,
         )
 
+        self.logger.info('Create "/set_compliant" service.')
         self.set_compliant_srv = self.create_service(
             srv_type=SetCompliant,
             srv_name='set_compliant',
             callback=self.set_compliant,
         )
 
+        self.logger.info('Node ready!')
+
     def publish_joint_states(self) -> None:
         """Publish up-to-date JointState msg on /joint_states."""
         self.joint_state.header.stamp = self.clock.now().to_msg()
-        self.joint_state.position = self.robot_hardware.get_joint_positions(self.joint_names)
-        self.joint_state.velocity = self.robot_hardware.get_joint_velocities(self.joint_names)
-        self.joint_state.effort = self.robot_hardware.get_joint_efforts(self.joint_names)
+
+        positions = self.robot_hardware.get_joint_positions(self.joint_names)
+        if positions is not None:
+            self.joint_state.position = positions
+
+        velocities = self.robot_hardware.get_joint_velocities(self.joint_names)
+        if velocities is not None:
+            self.joint_state.velocity = velocities
+
+        efforts = self.robot_hardware.get_joint_efforts(self.joint_names)
+        if efforts is not None:
+            self.joint_state.effort = efforts
 
         self.joint_state_publisher.publish(self.joint_state)
 
@@ -122,16 +142,17 @@ class JointStateController(Node):
     def publish_force_gripper(self) -> None:
         """Publish force gripper sensor values for both arm on /force_gripper."""
         self.force_gripper.header.stamp = self.clock.now().to_msg()
-
-        self.force_gripper.load_sensor = [self.robot_hardware.get_grip_force(s) for s in self.force_gripper.side]
-
+        self.force_gripper.load_sensor = self.robot_hardware.get_grip_force(self.force_gripper.side)
         self.force_gripper_publisher.publish(self.force_gripper)
 
     def on_joint_goals(self, msg: JointState) -> None:
         """Handle new JointState goal by calling the robot hardware abstraction."""
-        self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
-        self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
-        self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
+        if msg.position:
+            self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
+        if msg.velocity:
+            self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
+        if msg.effort:
+            self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
 
     def get_joint_full_state(self,
                              request: GetJointsFullState.Request,
@@ -139,9 +160,19 @@ class JointStateController(Node):
                              ) -> GetJointsFullState.Response:
         """Handle GetJointsFullState service request."""
         response.name = self.joint_names
-        response.present_position = self.robot_hardware.get_joint_positions(self.joint_names)
-        response.present_speed = self.robot_hardware.get_joint_velocities(self.joint_names)
-        response.present_load = self.robot_hardware.get_joint_efforts(self.joint_names)
+
+        positions = self.robot_hardware.get_joint_positions(self.joint_names)
+        if positions:
+            response.present_position = positions
+
+        velocities = self.robot_hardware.get_joint_velocities(self.joint_names)
+        if velocities:
+            response.present_speed = velocities
+
+        efforts = self.robot_hardware.get_joint_efforts(self.joint_names)
+        if efforts:
+            response.present_load = efforts
+
         response.temperature = self.robot_hardware.get_joint_temperatures(self.joint_names)
         response.compliant = self.robot_hardware.get_compliant(self.joint_names)
         response.goal_position = self.robot_hardware.get_goal_positions(self.joint_names)
@@ -161,12 +192,13 @@ class JointStateController(Node):
 
 def main() -> None:
     """Run joint state controller main loop."""
-    from reachy_mockup_hardware.joint import MockupJointDynamixel
+    # from reachy_mockup_hardware.joint import MockupJointDynamixel
+    from reachy_pyluos_hal.joint import JointPyluos
 
     rclpy.init()
 
     joint_state_controller = JointStateController(
-        robot_hardware=MockupJointDynamixel(),
+        robot_hardware=JointPyluos,
     )
     rclpy.spin(joint_state_controller)
 

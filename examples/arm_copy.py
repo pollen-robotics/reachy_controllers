@@ -1,10 +1,16 @@
+"""
+Examples showing usage of /joint_states and /joint_goals topic.
+
+The position of the right arm is read and set to the left arm.
+"""
+
+
 import rclpy
 from rclpy.node import Node
-from sensor_msgs import msg
-
-from sensor_msgs.msg import JointState
 
 from reachy_msgs.srv import SetCompliant
+
+from sensor_msgs.msg import JointState
 
 
 class ArmCopy(Node):
@@ -43,7 +49,7 @@ class ArmCopy(Node):
             callback=self.on_joint_states,
             qos_profile=1,
         )
-        self.joint_goals_publisher = self.create_publisher(JointState, 'joint_goals', 1)
+        self.joint_goals_publisher = self.create_publisher(JointState, 'joint_goals', 5)
         self.joint_goals = JointState()
 
         request = SetCompliant.Request()
@@ -51,13 +57,7 @@ class ArmCopy(Node):
         request.compliant = [False] * len(self.left_arm)
 
         future = self.compliant_client.call_async(request)
-
-        while rclpy.ok():
-            rclpy.spin_once(self)
-
-            if future.done():
-                print(future.result())
-                break
+        rclpy.spin_until_future_complete(self, future)
 
     def on_joint_states(self, joint_state: JointState):
         joint_names = []
@@ -69,11 +69,11 @@ class ArmCopy(Node):
                 joint_names.append(name)
 
                 if name in [
-                    'r_shoulder_roll',
-                    'r_arm_yaw',
-                    'r_forearm_yaw',
-                    'r_wrist_roll',
-                    'r_gripper',
+                    'l_shoulder_roll',
+                    'l_arm_yaw',
+                    'l_forearm_yaw',
+                    'l_wrist_roll',
+                    'l_gripper',
                 ]:
                     joint_goals.append(-pos)
                 else:
