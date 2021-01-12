@@ -1,6 +1,6 @@
 """Fan handler service."""
 from reachy_msgs.srv import ManageFan
-from reachy_mockup_hardware.fan import MockupFan
+from reachy_mockup_hardware.fan import MockupRobotFans
 
 import rclpy
 from rclpy import Node
@@ -28,15 +28,16 @@ class FanService(Node):
         fan_states = request.mod
         for fan, state in zip(fan_names, fan_states):
             if state:
-                self.robot_hardware.on()
+                self.robot_hardware.fans[fan].on()
             else:
-                self.robot_hardware.off()
+                self.robot_hardware.fans[fan].off()
+
 
 def main(args=None):
     """Run service node."""
     rclpy.init(args=args)
 
-    fan_service = FanService(robot_hardware=MockupFan)
+    fan_service = FanService(robot_hardware=MockupRobotFans)
     rclpy.spin(fan_service)
     rclpy.shutdown()
 
