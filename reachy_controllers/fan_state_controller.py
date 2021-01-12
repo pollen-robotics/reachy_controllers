@@ -28,10 +28,9 @@ class FanService(Node):
         fan_states = request.mod
         for fan, state in zip(fan_names, fan_states):
             if state:
-                self.robot_hardware.fan.on()
+                self.robot_hardware.on()
             else:
-                self.robot_hardware.fan.off()
-
+                self.robot_hardware.off()
 
 def main(args=None):
     """Run service node."""
