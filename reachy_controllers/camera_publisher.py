@@ -15,13 +15,17 @@ from cv_bridge import CvBridge
 
 class CameraPublisher(Node):
     """Camera Publisher class."""
-    def __init__(self, size: tuple = (1280, 720), fps: float = 30.0) -> None:
+    def __init__(self,
+                left_port: str = '/dev/video0',
+                right_port: str = '/dev/video4',
+                size: tuple = (1280, 720),
+                fps: float = 30.0) -> None:
         """Connect to both cameras, initialize the publishers."""
         super().__init__('camera_publisher')
 
         self.image_left = CompressedImage()
         self.cap_left = cv.VideoCapture()
-        self.cap_left.open(0)
+        self.cap_left.open(left_port)
 
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
@@ -31,7 +35,7 @@ class CameraPublisher(Node):
 
         self.image_right = CompressedImage()
         self.cap_right = cv.VideoCapture()
-        self.cap_right.open(4)
+        self.cap_right.open(right_port)
 
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
