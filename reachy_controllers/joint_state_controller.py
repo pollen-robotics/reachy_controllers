@@ -24,7 +24,7 @@ class JointStateController(Node):
     def __init__(self, robot_hardware: Type[JointABC],
                  state_pub_rate: float = 100.0, 
                  temp_pub_rate: float = 0.1,
-                 fg_pub_rate: float = 0.1
+                 fg_pub_rate: float = 100.0
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
 
