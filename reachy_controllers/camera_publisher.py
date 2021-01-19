@@ -24,8 +24,7 @@ class CameraPublisher(Node):
         super().__init__('camera_publisher')
 
         self.image_left = CompressedImage()
-        self.cap_left = cv.VideoCapture()
-        self.cap_left.open(left_port)
+        self.cap_left = cv.VideoCapture(left_port, apiPreference=cv.CAP_V4L2)
 
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
@@ -34,8 +33,7 @@ class CameraPublisher(Node):
         self.cap_left.set(cv.CAP_PROP_FRAME_HEIGHT, size[1])
 
         self.image_right = CompressedImage()
-        self.cap_right = cv.VideoCapture()
-        self.cap_right.open(right_port)
+        self.cap_right = cv.VideoCapture(right_port, apiPreference=cv.CAP_V4L2)
 
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
@@ -56,9 +54,9 @@ class CameraPublisher(Node):
             )
         self.camera_publisher_right = self.create_publisher(CompressedImage, 'right_image', 1)
         self.publish_timer_r = self.create_timer(
-            timer_period_sec=1/fps,
-            callback=partial(self.publish_img, 'right')
-            )
+             timer_period_sec=1/fps,
+             callback=partial(self.publish_img, 'right')
+             )
 
         self.publisher = {
             'left': self.camera_publisher_left,
