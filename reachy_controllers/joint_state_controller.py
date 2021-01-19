@@ -5,12 +5,13 @@ Exposes all joints related information (pos/speed/load/temp).
 The access to the hardware is done through an HAL.
 
 """
+from logging import Logger
 from typing import Type
 
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.msg import JointTemperature, ForceGripper
+from reachy_msgs.msg import JointTemperature, LoadSensor
 from reachy_msgs.srv import GetJointsFullState, SetCompliant
 
 from reachy_ros_hal.joint import JointABC
@@ -77,11 +78,11 @@ class JointStateController(Node):
 
         self.logger.info(f'Setup "/force_gripper" publisher ({fg_pub_rate:.1f}Hz).')
         self.force_gripper_publisher = self.create_publisher(
-            msg_type=ForceGripper,
+            msg_type=LoadSensor,
             topic='force_gripper',
             qos_profile=5,
         )
-        self.force_gripper = ForceGripper()
+        self.force_gripper = LoadSensor()
         self.force_gripper.side = ['right', 'left']
         self.force_gripper_pub_timer = self.create_timer(
             timer_period_sec=1/fg_pub_rate,
@@ -142,7 +143,7 @@ class JointStateController(Node):
     def publish_force_gripper(self) -> None:
         """Publish force gripper sensor values for both arm on /force_gripper."""
         self.force_gripper.header.stamp = self.clock.now().to_msg()
-        self.force_gripper.load_sensor = self.robot_hardware.get_grip_force(self.force_gripper.side)
+        self.force_gripper.load_value = self.robot_hardware.get_grip_force(self.force_gripper.side)
         self.force_gripper_publisher.publish(self.force_gripper)
 
     def on_joint_goals(self, msg: JointState) -> None:
@@ -192,13 +193,12 @@ class JointStateController(Node):
 
 def main() -> None:
     """Run joint state controller main loop."""
-    # from reachy_mockup_hardware.joint import MockupJointDynamixel
-    from reachy_pyluos_hal.joint import JointPyluos
+    from reachy_pyluos_hal.joint_hal import JointLuos
 
     rclpy.init()
 
     joint_state_controller = JointStateController(
-        robot_hardware=JointPyluos,
+        robot_hardware=JointLuos,
     )
     rclpy.spin(joint_state_controller)
 
