@@ -27,8 +27,12 @@ class FanService(Node):
         """Service's callback."""
         fan_names = request.name
         fan_states = request.mod
-        self.robot_hardware.on(names=[fan for fan, state in zip(fan_names, fan_states) if state == 'on'])
-        self.robot_hardware.off(names=[fan for fan, state in zip(fan_names, fan_states) if state == 'off'])
+        self.robot_hardware.on(
+            names=[fan for fan, state in zip(fan_names, fan_states) if state]
+            )
+        self.robot_hardware.off(
+            names=[fan for fan, state in zip(fan_names, fan_states) if not state]
+            )
         return response
 
 
