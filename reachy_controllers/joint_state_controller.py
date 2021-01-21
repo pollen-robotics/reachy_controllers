@@ -25,14 +25,14 @@ class JointStateController(Node):
     def __init__(self, robot_hardware: Type[JointABC],
                  state_pub_rate: float = 100.0, 
                  temp_pub_rate: float = 0.1,
-                 fg_pub_rate: float = 100.0
+                 fg_pub_rate: float = 10.0
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
 
         Topic:
             - publish /joint_states at the specified rate (default: 100Hz)
             - publish /joint_temperatures at the specified rate (default: 0.1Hz)
-            - publish /force_gripper at the specified rate (default: 0.1Hz)
+            - publish /force_gripper at the specified rate (default: 10Hz)
             - subscribe to /joint_goals and forward the pos/vel/eff to the associated hal
 
         Service:
