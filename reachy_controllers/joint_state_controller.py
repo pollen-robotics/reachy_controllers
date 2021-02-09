@@ -23,7 +23,7 @@ from sensor_msgs.msg import JointState, Temperature
 class JointStateController(Node):
     """Joint State Controller Node."""
 
-    def __init__(self, robot_hardware: Type[JointABC],
+    def __init__(self, robot_hardware: JointABC,
                  state_pub_rate: float = 100.0, 
                  temp_pub_rate: float = 0.1,
                  fg_pub_rate: float = 10.0
@@ -45,6 +45,7 @@ class JointStateController(Node):
 
         # self.logger = self.get_logger()
         import logging
+        
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger()
 
