@@ -6,6 +6,7 @@ The access to the hardware is done through an HAL.
 
 """
 from logging import Logger
+import logging
 from typing import Type
 
 import rclpy
@@ -42,7 +43,10 @@ class JointStateController(Node):
         """
         super().__init__('joint_state_controller')
 
-        self.logger = self.get_logger()
+        # self.logger = self.get_logger()
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger()
 
         self.robot_hardware = robot_hardware(self.logger)
         self.joint_names = self.robot_hardware.get_all_joint_names()
