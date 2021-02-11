@@ -6,6 +6,7 @@ The access to the hardware is done through an HAL.
 
 """
 from logging import Logger
+import logging
 from typing import Type
 
 import rclpy
