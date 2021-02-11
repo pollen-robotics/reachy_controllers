@@ -23,7 +23,7 @@ class JointStateController(Node):
     """Joint State Controller Node."""
 
     def __init__(self, robot_hardware: Type[JointABC],
-                 state_pub_rate: float = 100.0, 
+                 state_pub_rate: float = 100.0,
                  temp_pub_rate: float = 0.1,
                  fg_pub_rate: float = 10.0
                  ) -> None:
@@ -45,6 +45,7 @@ class JointStateController(Node):
         self.logger = self.get_logger()
 
         self.robot_hardware = robot_hardware(self.logger)
+        self.robot_hardware.__enter__()
         self.joint_names = self.robot_hardware.get_all_joint_names()
 
         self.clock = self.get_clock()
@@ -112,6 +113,10 @@ class JointStateController(Node):
         )
 
         self.logger.info('Node ready!')
+
+    def shutdown(self) -> None:
+        self.logger.info('Shutting down... Please wait!')
+        self.robot_hardware.stop()
 
     def publish_joint_states(self) -> None:
         """Publish up-to-date JointState msg on /joint_states."""
@@ -200,9 +205,12 @@ def main() -> None:
     joint_state_controller = JointStateController(
         robot_hardware=JointLuos,
     )
-    rclpy.spin(joint_state_controller)
 
-    rclpy.shutdown()
+    try:
+        rclpy.spin(joint_state_controller)
+    except KeyboardInterrupt:
+        joint_state_controller.shutdown()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
