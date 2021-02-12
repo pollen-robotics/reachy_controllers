@@ -43,7 +43,9 @@ class JointStateController(Node):
         """
         super().__init__('joint_state_controller')
 
-        self.logger = self.get_logger()
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger()
 
         self.robot_hardware = robot_hardware(self.logger)
         self.robot_hardware.__enter__()
