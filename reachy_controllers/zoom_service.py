@@ -37,9 +37,9 @@ class ZoomControllerService(Node):
         if req == 'homing':
             self.controller.homing(request.side)
             return response
-        assert req == 'in' or req == 'out' or req == 'inter',\
-            "Invalid command sent to zoom controller. Command must be\
-        either 'homing', 'in', 'out' or 'inter'."
+            
+        if req not in ('in', 'out', 'inter'):
+            raise ValueError("Invalid command sent to zoom controller. Command must be either 'homing', 'in', 'out' or 'inter'.")
         self.controller.send_zoom_command(request.side, request.zoom_command)
         return response
 
