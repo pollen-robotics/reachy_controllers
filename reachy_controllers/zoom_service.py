@@ -33,8 +33,6 @@ class ZoomControllerService(Node):
         response:
             None
         '''
-        self.logger.info('Received command request.')
-
         if request.zoom_command == 'homing':
             self.controller.homing(request.side)
             return response
@@ -48,10 +46,7 @@ class ZoomControllerService(Node):
         response:
             None
         '''
-        self.logger.info('Received speed request.')
-
         self.controller.set_speed(request.speed)
-
         return response
 
 
