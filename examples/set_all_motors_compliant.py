@@ -25,6 +25,11 @@ class SetAllCompliant(Node):
         'r_wrist_pitch',
         'r_wrist_roll',
         'r_gripper',
+        'l_antenna',
+        'r_antenna',
+        'neck_disk_top',
+        'neck_disk_middle',
+        'neck_disk_bottom',
     ]
 
     def __init__(self) -> None:
