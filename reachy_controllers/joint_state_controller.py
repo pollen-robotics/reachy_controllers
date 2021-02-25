@@ -182,7 +182,7 @@ class JointStateController(Node):
         if efforts:
             response.present_load = efforts
 
-        response.temperature = self.robot_hardware.get_joint_temperatures(self.joint_names)
+        response.temperature = [float(temp) for temp in self.robot_hardware.get_joint_temperatures(self.joint_names)]
         response.compliant = self.robot_hardware.get_compliant(self.joint_names)
         response.goal_position = self.robot_hardware.get_goal_positions(self.joint_names)
         response.speed_limit = self.robot_hardware.get_goal_velocities(self.joint_names)
