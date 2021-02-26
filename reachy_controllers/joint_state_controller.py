@@ -13,7 +13,7 @@ import rclpy
 from rclpy.node import Node
 
 from reachy_msgs.msg import JointTemperature, LoadSensor
-from reachy_msgs.srv import GetJointsFullState, SetCompliant
+from reachy_msgs.srv import GetJointsFullState, SetCompliant, ManageFan
 
 from reachy_ros_hal.joint import JointABC
 
@@ -115,6 +115,13 @@ class JointStateController(Node):
             callback=self.set_compliant,
         )
 
+        self.logger.info('Create "/fan_manager" service.')
+        self.fan_srv = self.create_service(
+            srv_type=ManageFan,
+            srv_name='fan_manager',
+            callback=self.manage_fan_cb,
+        )
+
         self.logger.info('Node ready!')
 
     def shutdown(self) -> None:
@@ -196,6 +203,22 @@ class JointStateController(Node):
         success = self.robot_hardware.set_compliance(compliances)
 
         response.success = success
+        return response
+
+    def manage_fan_cb(self,
+                      request: ManageFan.Request,
+                      response: ManageFan.Response
+                      ) -> ManageFan.Response:
+        """Service fan callback."""
+        fan_names = request.name
+        fan_states = request.mod
+
+        self.robot_hardware.on(
+            names=[fan for fan, state in zip(fan_names, fan_states) if state],
+        )
+        self.robot_hardware.off(
+            names=[fan for fan, state in zip(fan_names, fan_states) if not state],
+        )
         return response
 
 
