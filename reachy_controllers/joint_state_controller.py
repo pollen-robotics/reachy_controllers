@@ -221,15 +221,9 @@ class JointStateController(Node):
                       response: SetFanState.Response
                       ) -> SetFanState.Response:
         """Service fan callback."""
-        fan_names = request.name
-        fan_states = request.state
+        success = self.robot_hardware.set_fan_state(dict(zip(request.name, request.state)))
+        response.success = success
 
-        self.robot_hardware.on(
-            names=[fan for fan, state in zip(fan_names, fan_states) if state],
-        )
-        self.robot_hardware.off(
-            names=[fan for fan, state in zip(fan_names, fan_states) if not state],
-        )
         return response
 
 
