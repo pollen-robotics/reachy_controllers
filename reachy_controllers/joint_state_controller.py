@@ -1,7 +1,12 @@
 """
 Joint State Controller Node.
 
-Exposes all joints related information (pos/speed/load/temp).
+Exposes
+ - all joints related information (pos/speed/load/temp)
+ - joint compliancy service
+ - force sensors
+ - fan management
+
 The access to the hardware is done through an HAL.
 
 """
@@ -11,12 +16,14 @@ from typing import Type
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.msg import JointTemperature, LoadSensor
-from reachy_msgs.srv import GetJointsFullState, SetCompliant, ManageFan
+from sensor_msgs.msg import JointState, Temperature
 
 from reachy_pyluos_hal.joint_hal import JointLuos
 
-from sensor_msgs.msg import JointState, Temperature
+from reachy_msgs.msg import ForceSensor
+from reachy_msgs.msg import JointTemperature
+from reachy_msgs.srv import GetJointFullState, SetJointCompliancy
+from reachy_msgs.srv import SetFanState
 
 
 class JointStateController(Node):
@@ -25,20 +32,23 @@ class JointStateController(Node):
     def __init__(self, robot_hardware: Type[JointLuos],
                  state_pub_rate: float = 100.0,
                  temp_pub_rate: float = 0.1,
-                 fg_pub_rate: float = 10.0
+                 force_pub_rate: float = 10.0
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
 
         Topic:
             - publish /joint_states at the specified rate (default: 100Hz)
-            - publish /joint_temperatures at the specified rate (default: 0.1Hz)
-            - publish /force_gripper at the specified rate (default: 10Hz)
             - subscribe to /joint_goals and forward the pos/vel/eff to the associated hal
 
+            - publish /joint_temperatures at the specified rate (default: 0.1Hz)
+
+            - publish /force_sensors at the specified rate (default: 10Hz)
+
         Service:
-            - /get_joints_full_state GetJointsFullState
-            - /set_compliant SetCompliant
-            - /set_pid SetPID (TODO: impl :))
+            - /get_joints_full_state GetJointFullState
+            - /set_joint_compliancy SetJointCompliancy
+            - /set_joint_pid SetJointPID (TODO: impl :))
+            - /set_fan_state SetFanState
         """
         super().__init__('joint_state_controller')
 
@@ -47,11 +57,12 @@ class JointStateController(Node):
 
         self.robot_hardware = robot_hardware(self.logger)
         self.robot_hardware.__enter__()
+
+        self.force_sensor_names = self.robot_hardware.get_all_force_sensor_names()
         self.joint_names = self.robot_hardware.get_all_joint_names()
 
         self.clock = self.get_clock()
 
-        self.logger.info(f'Setup "/joint_states" publisher ({state_pub_rate:.1f}Hz).')
         self.joint_state_publisher = self.create_publisher(
             msg_type=JointState,
             topic='joint_states',
@@ -63,8 +74,8 @@ class JointStateController(Node):
             timer_period_sec=1/state_pub_rate,
             callback=self.publish_joint_states,
         )
+        self.logger.info(f'Setup "{self.joint_state_publisher.topic_name}" publisher ({state_pub_rate:.1f}Hz).')
 
-        self.logger.info(f'Setup "/joint_temperatures" publisher ({temp_pub_rate:.1f}Hz).')
         self.joint_temperature_publisher = self.create_publisher(
             msg_type=JointTemperature,
             topic='joint_temperatures',
@@ -77,48 +88,49 @@ class JointStateController(Node):
             timer_period_sec=1/temp_pub_rate,
             callback=self.publish_joint_temperatures,
         )
+        self.logger.info(f'Setup "{self.joint_temperature_publisher.topic_name}" publisher ({temp_pub_rate:.1f}Hz).')
 
-        self.logger.info(f'Setup "/force_gripper" publisher ({fg_pub_rate:.1f}Hz).')
-        self.force_gripper_publisher = self.create_publisher(
-            msg_type=LoadSensor,
-            topic='force_gripper',
+        self.force_sensors_publisher = self.create_publisher(
+            msg_type=ForceSensor,
+            topic='force_sensors',
             qos_profile=5,
         )
-        self.force_gripper = LoadSensor()
-        self.force_gripper.side = ['right', 'left']
-        self.force_gripper_pub_timer = self.create_timer(
-            timer_period_sec=1/fg_pub_rate,
-            callback=self.publish_force_gripper
+        self.force_sensors = ForceSensor()
+        self.force_sensors.name = self.force_sensor_names
+        self.force_sensors_pub_timer = self.create_timer(
+            timer_period_sec=1/force_pub_rate,
+            callback=self.publish_force_sensors,
         )
+        self.logger.info(f'Setup "{self.force_sensors_publisher.topic_name}" publisher ({force_pub_rate:.1f}Hz).')
 
-        self.logger.info('Subscribe to "/joint_goals".')
         self.joint_goal_subscription = self.create_subscription(
             msg_type=JointState,
             topic='joint_goals',
             callback=self.on_joint_goals,
             qos_profile=5,
         )
+        self.logger.info(f'Subscribe to "{self.joint_goal_subscription.topic_name}".')
 
-        self.logger.info('Create "/get_joint_full_state" service.')
         self.get_joint_full_state_srv = self.create_service(
-            srv_type=GetJointsFullState,
+            srv_type=GetJointFullState,
             srv_name='get_joint_full_state',
             callback=self.get_joint_full_state,
         )
+        self.logger.info(f'Create "{self.get_joint_full_state_srv.srv_name}" service.')
 
-        self.logger.info('Create "/set_compliant" service.')
         self.set_compliant_srv = self.create_service(
-            srv_type=SetCompliant,
-            srv_name='set_compliant',
-            callback=self.set_compliant,
+            srv_type=SetJointCompliancy,
+            srv_name='set_joint_compliancy',
+            callback=self.set_joint_compliancy,
         )
+        self.logger.info(f'Create "{self.set_compliant_srv.srv_name}" service.')
 
-        self.logger.info('Create "/fan_manager" service.')
         self.fan_srv = self.create_service(
-            srv_type=ManageFan,
-            srv_name='fan_manager',
-            callback=self.manage_fan_cb,
+            srv_type=SetFanState,
+            srv_name='set_fan_state',
+            callback=self.set_fan_state,
         )
+        self.logger.info(f'Create "{self.fan_srv.srv_name}" service.')
 
         self.logger.info('Node ready!')
 
@@ -154,11 +166,11 @@ class JointStateController(Node):
 
         self.joint_temperature_publisher.publish(self.joint_temperature)
 
-    def publish_force_gripper(self) -> None:
+    def publish_force_sensors(self) -> None:
         """Publish force gripper sensor values for both arm on /force_gripper."""
-        self.force_gripper.header.stamp = self.clock.now().to_msg()
-        self.force_gripper.load_value = self.robot_hardware.get_grip_force(self.force_gripper.side)
-        self.force_gripper_publisher.publish(self.force_gripper)
+        self.force_sensors.header.stamp = self.clock.now().to_msg()
+        self.force_sensors.force = self.robot_hardware.get_force(self.force_sensor_names)
+        self.force_sensors_publisher.publish(self.force_sensors)
 
     def on_joint_goals(self, msg: JointState) -> None:
         """Handle new JointState goal by calling the robot hardware abstraction."""
@@ -170,9 +182,9 @@ class JointStateController(Node):
             self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
 
     def get_joint_full_state(self,
-                             request: GetJointsFullState.Request,
-                             response: GetJointsFullState.Response,
-                             ) -> GetJointsFullState.Response:
+                             request: GetJointFullState.Request,
+                             response: GetJointFullState.Response,
+                             ) -> GetJointFullState.Response:
         """Handle GetJointsFullState service request."""
         response.name = self.joint_names
 
@@ -196,28 +208,25 @@ class JointStateController(Node):
 
         return response
 
-    def set_compliant(self, request: SetCompliant.Request, response: SetCompliant.Response) -> SetCompliant.Response:
+    def set_joint_compliancy(self,
+                             request: SetJointCompliancy.Request,
+                             response: SetJointCompliancy.Response,
+                             ) -> SetJointCompliancy.Response:
         """Handle SetCompliant service request."""
-        compliances = dict(zip(request.name, request.compliant))
+        compliances = dict(zip(request.name, request.compliancy))
         success = self.robot_hardware.set_compliance(compliances)
 
         response.success = success
         return response
 
-    def manage_fan_cb(self,
-                      request: ManageFan.Request,
-                      response: ManageFan.Response
-                      ) -> ManageFan.Response:
+    def set_fan_state(self,
+                      request: SetFanState.Request,
+                      response: SetFanState.Response
+                      ) -> SetFanState.Response:
         """Service fan callback."""
-        fan_names = request.name
-        fan_states = request.mod
+        success = self.robot_hardware.set_fan_state(dict(zip(request.name, request.state)))
+        response.success = success
 
-        self.robot_hardware.on(
-            names=[fan for fan, state in zip(fan_names, fan_states) if state],
-        )
-        self.robot_hardware.off(
-            names=[fan for fan, state in zip(fan_names, fan_states) if not state],
-        )
         return response
 
 
