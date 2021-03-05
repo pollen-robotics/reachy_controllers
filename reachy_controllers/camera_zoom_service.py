@@ -1,8 +1,9 @@
 """Service node to manage zoom for cameras."""
+
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.srv import ZoomCommand, SetZoomSpeed
+from reachy_msgs.srv import SetCameraZoomLevel, SetCameraZoomSpeed
 
 from zoom_kurokesu import ZoomController
 
@@ -12,41 +13,69 @@ class ZoomControllerService(Node):
 
     def __init__(self) -> None:
         """Set up the node and create the services."""
-        super().__init__('zoom_controller_service')
+        super().__init__('camera_zoom_controller_service')
         self.logger = self.get_logger()
 
         self.controller = ZoomController()
         self.command_service = self.create_service(
-            ZoomCommand,
-            'zoom_command',
-            self.zoom_command_callback
-            )
+            SetCameraZoomLevel,
+            'set_camera_zoom_level',
+            self.zoom_command_callback,
+        )
         self.logger.info(f'Launching "{self.command_service.srv_name}" service.')
 
         self.speed_service = self.create_service(
-            SetZoomSpeed,
-            'zoom_speed',
-            self.zoom_speed_callback
-            )
+            SetCameraZoomSpeed,
+            'set_camera_zoom_speed',
+            self.zoom_speed_callback,
+        )
         self.logger.info(f'Launching "{self.speed_service.srv_name}" service.')
 
         self.logger.info('Node ready!')
 
-    def zoom_command_callback(self, request: ZoomCommand.Request, response: ZoomCommand.Response) -> ZoomCommand.Response:
-        """Handle zoom_command request."""
-        req = request.zoom_command
-        if req == 'homing':
-            self.controller.homing(request.side)
-            return response
+    def zoom_command_callback(self,
+                              request: SetCameraZoomLevel.Request,
+                              response: SetCameraZoomLevel.Response,
+                              ) -> SetCameraZoomLevel.Response:
+        """Handle set_camera_zoom_level request."""
+        for name, level in zip(request.name, request.zoom_level):
+            try:
+                eye_side = {
+                    'left_eye': 'left',
+                    'right_eye': 'right',
+                }[name]
+            except AttributeError:
+                self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
+                response.success = False
+                return response
 
-        if req not in ('in', 'out', 'inter'):
-            raise ValueError("Invalid command sent to zoom controller. Command must be in ('homing', 'in', 'out' or 'inter').")
-        self.controller.send_zoom_command(request.side, request.zoom_command)
+            if level == 'homing':
+                self.controller.homing(eye_side)
+
+            elif level in ('in', 'out', 'inter'):
+                self.controller.send_zoom_command(eye_side, level)
+
+            else:
+                self.logger.warning("Invalid command sent to zoom controller (must be in ('homing', 'in', 'out' or 'inter')).")
+                response.success = False
+                return response
+
+        response.success = True
         return response
 
-    def zoom_speed_callback(self, request: SetZoomSpeed.Request, response: SetZoomSpeed.Response) -> SetZoomSpeed.Response:
-        """Handle zoom_speed request."""
-        self.controller.set_speed(request.speed)
+    def zoom_speed_callback(self,
+                            request: SetCameraZoomSpeed.Request,
+                            response: SetCameraZoomSpeed.Response,
+                            ) -> SetCameraZoomSpeed.Response:
+        """Handle set_camera_zoom_speed request."""
+        for name, speed in zip(request.name, request.speed):
+            if name not in ['left_eye', 'right_eye']:
+                self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
+                response.success = False
+                return response
+
+            self.controller.set_speed(speed)
+        response.success = True
         return response
 
 
