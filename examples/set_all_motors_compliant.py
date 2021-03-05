@@ -3,7 +3,7 @@
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.srv import SetCompliant
+from reachy_msgs.srv import SetJointCompliancy
 
 
 class SetAllCompliant(Node):
@@ -37,12 +37,12 @@ class SetAllCompliant(Node):
         """Set up the node and connect to the set compliant service."""
         super().__init__('arm_copy')
 
-        self.compliant_client = self.create_client(SetCompliant, 'set_compliant')
+        self.compliant_client = self.create_client(SetJointCompliancy, 'set_joint_compliancy')
         self.compliant_client.wait_for_service()
 
-        request = SetCompliant.Request()
+        request = SetJointCompliancy.Request()
         request.name = self.motors
-        request.compliant = [True] * len(self.motors)
+        request.compliancy = [True] * len(self.motors)
 
         self.future = self.compliant_client.call_async(request)
 

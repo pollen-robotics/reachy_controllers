@@ -8,7 +8,7 @@ The position of the right arm is read and set to the left arm.
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.srv import SetCompliant
+from reachy_msgs.srv import SetJointCompliancy
 
 from sensor_msgs.msg import JointState
 
@@ -41,7 +41,7 @@ class ArmCopy(Node):
         """Set up the Node and create necessary pub/sub/services."""
         super().__init__('arm_copy')
 
-        self.compliant_client = self.create_client(SetCompliant, 'set_compliant')
+        self.compliant_client = self.create_client(SetJointCompliancy, 'set_joint_compliancy')
         self.compliant_client.wait_for_service()
 
         self.clock = self.get_clock()
@@ -55,9 +55,9 @@ class ArmCopy(Node):
         self.joint_goals_publisher = self.create_publisher(JointState, 'joint_goals', 5)
         self.joint_goals = JointState()
 
-        request = SetCompliant.Request()
+        request = SetJointCompliancy.Request()
         request.name = self.left_arm
-        request.compliant = [False] * len(self.left_arm)
+        request.compliancy = [False] * len(self.left_arm)
 
         future = self.compliant_client.call_async(request)
         rclpy.spin_until_future_complete(self, future)
