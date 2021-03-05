@@ -1,8 +1,11 @@
 """
 Joint State Controller Node.
 
-Exposes all joints related information (pos/speed/load/temp).
-Exposes force sensors.
+Exposes
+ - all joints related information (pos/speed/load/temp)
+ - joint compliancy service
+ - force sensors
+ - fan management
 
 The access to the hardware is done through an HAL.
 
