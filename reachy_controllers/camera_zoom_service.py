@@ -13,7 +13,7 @@ class ZoomControllerService(Node):
 
     def __init__(self) -> None:
         """Set up the node and create the services."""
-        super().__init__('zoom_controller_service')
+        super().__init__('camera_zoom_controller_service')
         self.logger = self.get_logger()
 
         self.controller = ZoomController()
