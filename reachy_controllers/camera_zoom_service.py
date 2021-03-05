@@ -69,12 +69,7 @@ class ZoomControllerService(Node):
                             ) -> SetCameraZoomSpeed.Response:
         """Handle set_camera_zoom_speed request."""
         for name, speed in zip(request.name, request.speed):
-            try:
-                eye_side = {
-                    'left_eye': 'left',
-                    'right_eye': 'right',
-                }[name]
-            except AttributeError:
+            if name not in ['left_eye', 'right_eye']:
                 self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
                 response.success = False
                 return response
