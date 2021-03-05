@@ -5,23 +5,28 @@ Camera Node.
 
 """
 from functools import partial
+
+import cv2 as cv
+
 import rclpy
 from rclpy.node import Node
 
-import cv2 as cv
-from sensor_msgs.msg._compressed_image import CompressedImage
 from cv_bridge import CvBridge
+
+from sensor_msgs.msg._compressed_image import CompressedImage
 
 
 class CameraPublisher(Node):
     """Camera Publisher class."""
+
     def __init__(self,
-                left_port: str = '/dev/video0',
-                right_port: str = '/dev/video4',
-                size: tuple = (1280, 720),
-                fps: float = 30.0) -> None:
+                 left_port: str = '/dev/video0',
+                 right_port: str = '/dev/video4',
+                 size: tuple = (1280, 720),
+                 fps: float = 30.0) -> None:
         """Connect to both cameras, initialize the publishers."""
         super().__init__('camera_publisher')
+        self.logger = self.get_logger()
 
         self.image_left = CompressedImage()
         self.cap_left = cv.VideoCapture(left_port, apiPreference=cv.CAP_V4L2)
@@ -52,11 +57,14 @@ class CameraPublisher(Node):
             timer_period_sec=1/fps,
             callback=partial(self.publish_img, 'left')
             )
+        self.logger.info(f'Launching "{self.camera_publisher_left.topic_name}" publisher.')
+
         self.camera_publisher_right = self.create_publisher(CompressedImage, 'right_image', 1)
         self.publish_timer_r = self.create_timer(
              timer_period_sec=1/fps,
              callback=partial(self.publish_img, 'right')
              )
+        self.logger.info(f'Launching "{self.camera_publisher_right.topic_name}" publisher.')
 
         self.publisher = {
             'left': self.camera_publisher_left,
@@ -64,6 +72,8 @@ class CameraPublisher(Node):
         }
 
         self.bridge = CvBridge()
+
+        self.logger.info('Node ready!')
 
     def publish_img(self, side: str) -> None:
         """Read image from the requested side and publishes it."""
