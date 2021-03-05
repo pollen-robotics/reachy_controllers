@@ -3,9 +3,6 @@
 import rclpy
 from rclpy.node import Node
 
-from sensor_msgs import msg
-from sensor_msgs.msg import JointState
-
 from reachy_msgs.srv import SetCompliant
 
 
