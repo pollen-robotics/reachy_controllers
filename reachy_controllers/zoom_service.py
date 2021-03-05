@@ -4,7 +4,7 @@ from rclpy.node import Node
 
 from reachy_msgs.srv import ZoomCommand, SetZoomSpeed
 
-from optical_zoom.zoom_piloting import ZoomController
+from zoom_kurokesu import ZoomController
 
 
 class ZoomControllerService(Node):
