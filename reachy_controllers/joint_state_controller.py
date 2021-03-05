@@ -5,7 +5,6 @@ Exposes all joints related information (pos/speed/load/temp).
 The access to the hardware is done through an HAL.
 
 """
-from logging import Logger
 import logging
 from typing import Type
 
@@ -43,7 +42,6 @@ class JointStateController(Node):
         """
         super().__init__('joint_state_controller')
 
-        import logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger()
 
@@ -125,6 +123,7 @@ class JointStateController(Node):
         self.logger.info('Node ready!')
 
     def shutdown(self) -> None:
+        """Clean and close the connection with the robot."""
         self.logger.info('Shutting down... Please wait!')
         self.robot_hardware.stop()
 
@@ -169,7 +168,7 @@ class JointStateController(Node):
             self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
         if msg.position:
             self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
-            
+
     def get_joint_full_state(self,
                              request: GetJointsFullState.Request,
                              response: GetJointsFullState.Response,

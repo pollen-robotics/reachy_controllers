@@ -1,13 +1,14 @@
+"""Examples showing how to turn all joints compliants."""
+
 import rclpy
 from rclpy.node import Node
-from sensor_msgs import msg
-
-from sensor_msgs.msg import JointState
 
 from reachy_msgs.srv import SetCompliant
 
 
 class SetAllCompliant(Node):
+    """Node responsible for turning all joints compliant."""
+
     motors = [
         'l_shoulder_pitch',
         'l_shoulder_roll',
@@ -33,6 +34,7 @@ class SetAllCompliant(Node):
     ]
 
     def __init__(self) -> None:
+        """Set up the node and connect to the set compliant service."""
         super().__init__('arm_copy')
 
         self.compliant_client = self.create_client(SetCompliant, 'set_compliant')
@@ -46,6 +48,7 @@ class SetAllCompliant(Node):
 
 
 def main():
+    """Run main loop."""
     rclpy.init()
 
     all_compliant = SetAllCompliant()
