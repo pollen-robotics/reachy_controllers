@@ -19,7 +19,8 @@ from reachy_pyluos_hal.joint_hal import JointLuos
 
 from reachy_msgs.msg import ForceSensor
 from reachy_msgs.msg import JointTemperature
-from reachy_msgs.srv import GetJointsFullState, SetCompliant, ManageFan
+from reachy_msgs.srv import GetJointFullState, SetJointCompliancy
+from reachy_msgs.srv import SetFanState
 
 
 class JointStateController(Node):
@@ -41,9 +42,10 @@ class JointStateController(Node):
             - publish /force_sensors at the specified rate (default: 10Hz)
 
         Service:
-            - /get_joints_full_state GetJointsFullState
-            - /set_compliant SetCompliant
-            - /set_pid SetPID (TODO: impl :))
+            - /get_joints_full_state GetJointFullState
+            - /set_joint_compliancy SetJointCompliancy
+            - /set_joint_pid SetJointPID (TODO: impl :))
+            - /set_fan_state SetFanState
         """
         super().__init__('joint_state_controller')
 
@@ -107,23 +109,23 @@ class JointStateController(Node):
         self.logger.info(f'Subscribe to "{self.joint_goal_subscription.topic_name}".')
 
         self.get_joint_full_state_srv = self.create_service(
-            srv_type=GetJointsFullState,
+            srv_type=GetJointFullState,
             srv_name='get_joint_full_state',
             callback=self.get_joint_full_state,
         )
         self.logger.info(f'Create "{self.get_joint_full_state_srv.srv_name}" service.')
 
         self.set_compliant_srv = self.create_service(
-            srv_type=SetCompliant,
-            srv_name='set_compliant',
-            callback=self.set_compliant,
+            srv_type=SetJointCompliancy,
+            srv_name='set_joint_compliancy',
+            callback=self.set_joint_compliancy,
         )
         self.logger.info(f'Create "{self.set_compliant_srv.srv_name}" service.')
 
         self.fan_srv = self.create_service(
-            srv_type=ManageFan,
-            srv_name='fan_manager',
-            callback=self.manage_fan_cb,
+            srv_type=SetFanState,
+            srv_name='set_fan_state',
+            callback=self.set_fan_state,
         )
         self.logger.info(f'Create "{self.fan_srv.srv_name}" service.')
 
@@ -177,9 +179,9 @@ class JointStateController(Node):
             self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
 
     def get_joint_full_state(self,
-                             request: GetJointsFullState.Request,
-                             response: GetJointsFullState.Response,
-                             ) -> GetJointsFullState.Response:
+                             request: GetJointFullState.Request,
+                             response: GetJointFullState.Response,
+                             ) -> GetJointFullState.Response:
         """Handle GetJointsFullState service request."""
         response.name = self.joint_names
 
@@ -203,21 +205,24 @@ class JointStateController(Node):
 
         return response
 
-    def set_compliant(self, request: SetCompliant.Request, response: SetCompliant.Response) -> SetCompliant.Response:
+    def set_joint_compliancy(self,
+                             request: SetJointCompliancy.Request,
+                             response: SetJointCompliancy.Response,
+                             ) -> SetJointCompliancy.Response:
         """Handle SetCompliant service request."""
-        compliances = dict(zip(request.name, request.compliant))
+        compliances = dict(zip(request.name, request.compliancy))
         success = self.robot_hardware.set_compliance(compliances)
 
         response.success = success
         return response
 
-    def manage_fan_cb(self,
-                      request: ManageFan.Request,
-                      response: ManageFan.Response
-                      ) -> ManageFan.Response:
+    def set_fan_state(self,
+                      request: SetFanState.Request,
+                      response: SetFanState.Response
+                      ) -> SetFanState.Response:
         """Service fan callback."""
         fan_names = request.name
-        fan_states = request.mod
+        fan_states = request.state
 
         self.robot_hardware.on(
             names=[fan for fan, state in zip(fan_names, fan_states) if state],
