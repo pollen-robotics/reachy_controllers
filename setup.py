@@ -19,6 +19,7 @@ setup(
     install_requires=[
         'setuptools',
         'zoom_kurokesu>=1',
+        'reachy_pyluos_hal',
     ],
     zip_safe=True,
     maintainer='Pollen-Robotics',

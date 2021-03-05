@@ -14,7 +14,7 @@ from rclpy.node import Node
 from reachy_msgs.msg import JointTemperature, LoadSensor
 from reachy_msgs.srv import GetJointsFullState, SetCompliant, ManageFan
 
-from reachy_ros_hal.joint import JointABC
+from reachy_pyluos_hal.joint_hal import JointLuos
 
 from sensor_msgs.msg import JointState, Temperature
 
@@ -22,7 +22,7 @@ from sensor_msgs.msg import JointState, Temperature
 class JointStateController(Node):
     """Joint State Controller Node."""
 
-    def __init__(self, robot_hardware: Type[JointABC],
+    def __init__(self, robot_hardware: Type[JointLuos],
                  state_pub_rate: float = 100.0,
                  temp_pub_rate: float = 0.1,
                  fg_pub_rate: float = 10.0
@@ -223,8 +223,6 @@ class JointStateController(Node):
 
 def main() -> None:
     """Run joint state controller main loop."""
-    from reachy_pyluos_hal.joint_hal import JointLuos
-
     rclpy.init()
 
     joint_state_controller = JointStateController(
