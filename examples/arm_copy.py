@@ -14,6 +14,8 @@ from sensor_msgs.msg import JointState
 
 
 class ArmCopy(Node):
+    """Node reponsibles for copying movements applied to the left arm on the right one."""
+
     left_arm = [
         'l_shoulder_pitch',
         'l_shoulder_roll',
@@ -36,6 +38,7 @@ class ArmCopy(Node):
     ]
 
     def __init__(self) -> None:
+        """Set up the Node and create necessary pub/sub/services."""
         super().__init__('arm_copy')
 
         self.compliant_client = self.create_client(SetCompliant, 'set_compliant')
@@ -60,6 +63,7 @@ class ArmCopy(Node):
         rclpy.spin_until_future_complete(self, future)
 
     def on_joint_states(self, joint_state: JointState):
+        """Handle message callback for the /joint_states topic."""
         joint_names = []
         joint_goals = []
 
@@ -87,6 +91,7 @@ class ArmCopy(Node):
 
 
 def main():
+    """Run main loop."""
     rclpy.init()
 
     arm_copy = ArmCopy()
