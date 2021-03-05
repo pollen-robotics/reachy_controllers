@@ -11,7 +11,8 @@ from typing import Type
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.msg import JointTemperature, LoadSensor
+from reachy_msgs.msg import JointTemperature
+from reachy_msgs.msg import ForceSensor
 from reachy_msgs.srv import GetJointsFullState, SetCompliant, ManageFan
 
 from reachy_pyluos_hal.joint_hal import JointLuos
@@ -25,15 +26,17 @@ class JointStateController(Node):
     def __init__(self, robot_hardware: Type[JointLuos],
                  state_pub_rate: float = 100.0,
                  temp_pub_rate: float = 0.1,
-                 fg_pub_rate: float = 10.0
+                 force_pub_rate: float = 10.0
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
 
         Topic:
             - publish /joint_states at the specified rate (default: 100Hz)
-            - publish /joint_temperatures at the specified rate (default: 0.1Hz)
-            - publish /force_gripper at the specified rate (default: 10Hz)
             - subscribe to /joint_goals and forward the pos/vel/eff to the associated hal
+
+            - publish /joint_temperatures at the specified rate (default: 0.1Hz)
+
+            - publish /force_sensors at the specified rate (default: 10Hz)
 
         Service:
             - /get_joints_full_state GetJointsFullState
@@ -78,18 +81,19 @@ class JointStateController(Node):
             callback=self.publish_joint_temperatures,
         )
 
-        self.logger.info(f'Setup "/force_gripper" publisher ({fg_pub_rate:.1f}Hz).')
-        self.force_gripper_publisher = self.create_publisher(
-            msg_type=LoadSensor,
-            topic='force_gripper',
+        self.force_sensors_publisher = self.create_publisher(
+            msg_type=ForceSensor,
+            topic='force_sensors',
             qos_profile=5,
         )
-        self.force_gripper = LoadSensor()
-        self.force_gripper.side = ['right', 'left']
-        self.force_gripper_pub_timer = self.create_timer(
-            timer_period_sec=1/fg_pub_rate,
-            callback=self.publish_force_gripper
+        self.force_sensor_names = self.robot_hardware.get_all_force_sensor_names()
+        self.force_sensors = ForceSensor()
+        self.force_sensors.name = self.force_sensor_names
+        self.force_sensors_pub_timer = self.create_timer(
+            timer_period_sec=1/force_pub_rate,
+            callback=self.publish_force_sensors,
         )
+        self.logger.info(f'Setup "{self.force_sensors_publisher.topic_name}" publisher ({force_pub_rate:.1f}Hz).')
 
         self.logger.info('Subscribe to "/joint_goals".')
         self.joint_goal_subscription = self.create_subscription(
@@ -154,11 +158,11 @@ class JointStateController(Node):
 
         self.joint_temperature_publisher.publish(self.joint_temperature)
 
-    def publish_force_gripper(self) -> None:
+    def publish_force_sensors(self) -> None:
         """Publish force gripper sensor values for both arm on /force_gripper."""
-        self.force_gripper.header.stamp = self.clock.now().to_msg()
-        self.force_gripper.load_value = self.robot_hardware.get_grip_force(self.force_gripper.side)
-        self.force_gripper_publisher.publish(self.force_gripper)
+        self.force_sensors.header.stamp = self.clock.now().to_msg()
+        self.force_sensors.force = self.robot_hardware.get_force(self.force_sensor_names)
+        self.force_sensors_publisher.publish(self.force_sensors)
 
     def on_joint_goals(self, msg: JointState) -> None:
         """Handle new JointState goal by calling the robot hardware abstraction."""
