@@ -2,6 +2,8 @@
 Joint State Controller Node.
 
 Exposes all joints related information (pos/speed/load/temp).
+Exposes force sensors.
+
 The access to the hardware is done through an HAL.
 
 """
@@ -11,13 +13,13 @@ from typing import Type
 import rclpy
 from rclpy.node import Node
 
-from reachy_msgs.msg import JointTemperature
-from reachy_msgs.msg import ForceSensor
-from reachy_msgs.srv import GetJointsFullState, SetCompliant, ManageFan
+from sensor_msgs.msg import JointState, Temperature
 
 from reachy_pyluos_hal.joint_hal import JointLuos
 
-from sensor_msgs.msg import JointState, Temperature
+from reachy_msgs.msg import ForceSensor
+from reachy_msgs.msg import JointTemperature
+from reachy_msgs.srv import GetJointsFullState, SetCompliant, ManageFan
 
 
 class JointStateController(Node):
@@ -50,6 +52,8 @@ class JointStateController(Node):
 
         self.robot_hardware = robot_hardware(self.logger)
         self.robot_hardware.__enter__()
+
+        self.force_sensor_names = self.robot_hardware.get_all_force_sensor_names()
         self.joint_names = self.robot_hardware.get_all_joint_names()
 
         self.clock = self.get_clock()
@@ -79,14 +83,13 @@ class JointStateController(Node):
             timer_period_sec=1/temp_pub_rate,
             callback=self.publish_joint_temperatures,
         )
-        self.logger.info(f'Setup "{self.joint_state_publisher.topic_name}" publisher ({temp_pub_rate:.1f}Hz).')
+        self.logger.info(f'Setup "{self.joint_temperature_publisher.topic_name}" publisher ({temp_pub_rate:.1f}Hz).')
 
         self.force_sensors_publisher = self.create_publisher(
             msg_type=ForceSensor,
             topic='force_sensors',
             qos_profile=5,
         )
-        self.force_sensor_names = self.robot_hardware.get_all_force_sensor_names()
         self.force_sensors = ForceSensor()
         self.force_sensors.name = self.force_sensor_names
         self.force_sensors_pub_timer = self.create_timer(
