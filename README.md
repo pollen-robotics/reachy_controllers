@@ -1,6 +1,11 @@
 # Reachy controllers
 
-ROS2 package handling Reachy's joints, publishing images from both cameras and controlling the zoom and the fans.
+ROS2 package handling Reachy:
+- joints state and command,
+- fans management,
+- force sensor reading,
+- publishing images from both cameras,
+- and controlling the zoom.
 
 **ROS2 Version: Foxy**
 
