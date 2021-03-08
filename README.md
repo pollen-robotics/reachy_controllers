@@ -43,11 +43,11 @@ The callback of this topic uses [reachy_pyluos_hal](https://github.com/pollen-ro
 
 * **/set_camera_zoom_speed** ([reachy_msgs/srv/SetCameraZoomSpeed.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetCameraZoomSpeed.srv))[[camera_zoom_controller_service](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/camera_zoom_service.py)] - Change the speed of the zoom motors. <br> See [zoom_kurokesu repository](https://github.com/pollen-robotics/zoom_kurokesu) for more information.
 
-* **/get_joints_full_state** ([reachy_msgs/srv/SetCameraZoomSpeed.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetCameraZoomSpeed.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Returns position, velocity, effort, temperature, compliance, goal position, speed limit and torque limit of requested joints.
+* **/get_joint_full_state** ([reachy_msgs/srv/GetJointFullState.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/GetJointFullState.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Returns position, velocity, effort, temperature, compliance, goal position, speed limit and torque limit of requested joints.
 
-* **/set_joint_compliancy** ([reachy_msgs/srv/SetCameraZoomSpeed.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetCameraZoomSpeed.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Set compliancy of the requested joints to the requested compliance boolean (True=compliant, False=stiff). 
+* **/set_joint_compliancy** ([reachy_msgs/srv/SetJointCompliancy.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetJointCompliancy.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Set compliancy of the requested joints to the requested compliance boolean (True=compliant, False=stiff). 
 
-* **/set_fan_state** ([reachy_msgs/srv/SetCameraZoomSpeed.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetCameraZoomSpeed.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Set requested fans to requested state (on or off). 
+* **/set_fan_state** ([reachy_msgs/srv/SetFanState.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetFanState.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Set requested fans to requested state (on or off). 
 
 
 ## Launch files
