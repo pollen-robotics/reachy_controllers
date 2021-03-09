@@ -21,6 +21,7 @@ from sensor_msgs.msg import JointState, Temperature
 from reachy_pyluos_hal.joint_hal import JointLuos
 
 from reachy_msgs.msg import ForceSensor
+from reachy_msgs.msg import FanState
 from reachy_msgs.msg import JointTemperature
 from reachy_msgs.srv import GetJointFullState, SetJointCompliancy
 from reachy_msgs.srv import SetFanState
@@ -32,6 +33,7 @@ class JointStateController(Node):
     def __init__(self, robot_hardware: Type[JointLuos],
                  state_pub_rate: float = 100.0,
                  temp_pub_rate: float = 0.1,
+                 fan_pub_rate: float = 0.1,
                  force_pub_rate: float = 10.0
                  ) -> None:
         """Set up the Node and the pub/sub/srv.
@@ -39,8 +41,9 @@ class JointStateController(Node):
         Topic:
             - publish /joint_states at the specified rate (default: 100Hz)
             - subscribe to /joint_goals and forward the pos/vel/eff to the associated hal
-
             - publish /joint_temperatures at the specified rate (default: 0.1Hz)
+
+            - publish /fan_states at the specified rate (default: 0.1Hz)
 
             - publish /force_sensors at the specified rate (default: 10Hz)
 
@@ -58,6 +61,7 @@ class JointStateController(Node):
         self.robot_hardware = robot_hardware(self.logger)
         self.robot_hardware.__enter__()
 
+        self.fan_names = self.robot_hardware.get_all_fan_names()
         self.force_sensor_names = self.robot_hardware.get_all_force_sensor_names()
         self.joint_names = self.robot_hardware.get_all_joint_names()
 
@@ -89,6 +93,19 @@ class JointStateController(Node):
             callback=self.publish_joint_temperatures,
         )
         self.logger.info(f'Setup "{self.joint_temperature_publisher.topic_name}" publisher ({temp_pub_rate:.1f}Hz).')
+
+        self.fan_state_publisher = self.create_publisher(
+            msg_type=FanState,
+            topic='fan_states',
+            qos_profile=5,
+        )
+        self.fan_state = FanState()
+        self.fan_state.name = self.fan_names
+        self.fan_state_pub_timer = self.create_timer(
+            timer_period_sec=1/fan_pub_rate,
+            callback=self.publish_fan_states,
+        )
+        self.logger.info(f'Setup "{self.fan_state_publisher.topic_name}" publisher ({fan_pub_rate:.1f}Hz).')
 
         self.force_sensors_publisher = self.create_publisher(
             msg_type=ForceSensor,
@@ -165,6 +182,12 @@ class JointStateController(Node):
             self.joint_temperature.temperature[i].temperature = float(temp)
 
         self.joint_temperature_publisher.publish(self.joint_temperature)
+
+    def publish_fan_states(self) -> None:
+        """Publish up-to-date FanState msg on /fan_states."""
+        self.fan_state.header.stamp = self.clock.now().to_msg()
+        self.fan_state.on = self.robot_hardware.get_fans_state(self.fan_names)
+        self.fan_state_publisher.publish(self.fan_state)
 
     def publish_force_sensors(self) -> None:
         """Publish force gripper sensor values for both arm on /force_gripper."""
