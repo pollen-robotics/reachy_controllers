@@ -31,7 +31,11 @@ colcon build --packages-select reachy_controllers
 
 * **/joint_temperatures** ([reachy_msgs/msg/JointTemperature](https://github.com/pollen-robotics/reachy_msgs/blob/master/msg/JointTemperature.msg))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] Temperature from each joint (both arms, orbita and antennas).
 <br> Default rate: 0.1Hz.
+
 * **/force_sensors** ([reachy_msgs/msg/ForceSensor](https://github.com/pollen-robotics/reachy_msgs/blob/master/msg/ForceSensor.msg))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Force sensor value for left and right gripper. <br> Default rate: 10Hz.
+
+* **/fan_states** ([reachy_msgs/msg/FanState](https://github.com/pollen-robotics/reachy_msgs/blob/master/msg/FanState.msg))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] State for each fan.
+<br> Default rate: 0.1Hz.
 
 ## Subscribed topics
 * **/joint_goals** ([sensors_msgs/msg/JointState](http://docs.ros.org/en/api/sensor_msgs/html/msg/JointState.html))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] -
