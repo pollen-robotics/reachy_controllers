@@ -4,6 +4,7 @@ Joint State Controller Node.
 Exposes
  - all joints related information (pos/speed/load/temp)
  - joint compliancy service
+ - joint PID service
  - force sensors
  - fan management
 
@@ -24,7 +25,7 @@ from reachy_msgs.msg import ForceSensor
 from reachy_msgs.msg import FanState
 from reachy_msgs.msg import JointTemperature
 from reachy_msgs.msg import PidGains
-from reachy_msgs.srv import GetJointFullState, SetJointCompliancy
+from reachy_msgs.srv import GetJointFullState, SetJointCompliancy, SetJointPidGains
 from reachy_msgs.srv import SetFanState
 
 
@@ -51,7 +52,7 @@ class JointStateController(Node):
         Service:
             - /get_joints_full_state GetJointFullState
             - /set_joint_compliancy SetJointCompliancy
-            - /set_joint_pid SetJointPID (TODO: impl :))
+            - /set_joint_pid SetJointPID
             - /set_fan_state SetFanState
         """
         super().__init__('joint_state_controller')
@@ -142,6 +143,13 @@ class JointStateController(Node):
             callback=self.set_joint_compliancy,
         )
         self.logger.info(f'Create "{self.set_compliant_srv.srv_name}" service.')
+
+        self.set_pid_srv = self.create_service(
+            srv_type=SetJointPidGains,
+            srv_name='set_joint_pid',
+            callback=self.set_joint_pid,
+        )
+        self.logger.info(f'Create "{self.set_pid_srv.srv_name}" service.')
 
         self.fan_srv = self.create_service(
             srv_type=SetFanState,
@@ -250,6 +258,20 @@ class JointStateController(Node):
         response.success = success
         return response
 
+    def set_joint_pid(self,
+                      request: SetJointPidGains.Request,
+                      response: SetJointPidGains.Response,
+                      ) -> SetJointPidGains:
+        """Handle SetJointPidGains service request."""
+        pids = {
+            name: _pid_gain_to_val(pid_gain)
+            for name, pid_gain in zip(request.name, request.pid_gain)
+        }
+        success = self.robot_hardware.set_goal_pids(pids)
+
+        response.success = success
+        return response
+
     def set_fan_state(self,
                       request: SetFanState.Request,
                       response: SetFanState.Response
@@ -273,6 +295,19 @@ def _val_to_pid_gain(values: List[float]) -> PidGains:
         raise ValueError(f'PID value should either be a triplet or a quadruplet ({values}!')
 
     return gains
+
+
+def _pid_gain_to_val(pid_gain: PidGains) -> List[float]:
+    if pid_gain.p:
+        return [pid_gain.p, pid_gain.i, pid_gain.d]
+
+    elif pid_gain.cw_compliance_slope:
+        return [
+            pid_gain.cw_compliance_margin, pid_gain.ccw_compliance_margin,
+            pid_gain.cw_compliance_slope, pid_gain.ccw_compliance_slope
+        ]
+    else:
+        raise ValueError(f'PidGain with insufficent information ({pid_gain}!')
 
 
 def main() -> None:
