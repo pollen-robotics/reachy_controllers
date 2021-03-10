@@ -198,11 +198,17 @@ class JointStateController(Node):
     def on_joint_goals(self, msg: JointState) -> None:
         """Handle new JointState goal by calling the robot hardware abstraction."""
         if msg.velocity:
-            self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
+            success = self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
+            if not success:
+                self.logger.warning(f'Could not set goal velocities {dict(zip(msg.name, msg.velocity))}')
         if msg.effort:
-            self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
+            success = self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
+            if not success:
+                self.logger.warning(f'Could not set goal efforts {dict(zip(msg.name, msg.velocity))}')
         if msg.position:
-            self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
+            success = self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
+            if not success:
+                self.logger.warning(f'Could not set goal positions {dict(zip(msg.name, msg.velocity))}')
 
     def get_joint_full_state(self,
                              request: GetJointFullState.Request,
