@@ -11,7 +11,7 @@ The access to the hardware is done through an HAL.
 
 """
 import logging
-from typing import Type
+from typing import List, Type
 
 import rclpy
 from rclpy.node import Node
@@ -23,6 +23,7 @@ from reachy_pyluos_hal.joint_hal import JointLuos
 from reachy_msgs.msg import ForceSensor
 from reachy_msgs.msg import FanState
 from reachy_msgs.msg import JointTemperature
+from reachy_msgs.msg import PidGains
 from reachy_msgs.srv import GetJointFullState, SetJointCompliancy
 from reachy_msgs.srv import SetFanState
 
@@ -234,6 +235,7 @@ class JointStateController(Node):
         response.goal_position = self.robot_hardware.get_goal_positions(self.joint_names)
         response.speed_limit = self.robot_hardware.get_goal_velocities(self.joint_names)
         response.torque_limit = self.robot_hardware.get_goal_efforts(self.joint_names)
+        response.pid_gain = [_val_to_pid_gain(val) for val in self.robot_hardware.get_joint_pids(self.joint_names)]
 
         return response
 
@@ -257,6 +259,20 @@ class JointStateController(Node):
         response.success = success
 
         return response
+
+
+def _val_to_pid_gain(values: List[float]) -> PidGains:
+    gains = PidGains()
+
+    if len(values) == 3:
+        gains.p, gains.i, gains.d = values
+    elif len(values) == 4:
+        (gains.cw_compliance_margin, gains.ccw_compliance_margin,
+         gains.cw_compliance_slope, gains.ccw_compliance_slope) = values
+    else:
+        raise ValueError(f'PID value should either be a triplet or a quadruplet ({values}!')
+
+    return gains
 
 
 def main() -> None:
