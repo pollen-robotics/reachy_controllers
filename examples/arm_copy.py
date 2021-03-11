@@ -86,6 +86,7 @@ class ArmCopy(Node):
         self.joint_goals.header.stamp = self.clock.now().to_msg()
         self.joint_goals.name = joint_names
         self.joint_goals.position = joint_goals
+        self.joint_goals.velocity = [0.0 for _ in joint_names]
 
         self.joint_goals_publisher.publish(self.joint_goals)
 
