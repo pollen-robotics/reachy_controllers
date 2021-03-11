@@ -38,27 +38,26 @@ class ZoomControllerService(Node):
                               response: SetCameraZoomLevel.Response,
                               ) -> SetCameraZoomLevel.Response:
         """Handle set_camera_zoom_level request."""
-        for name, level in zip(request.name, request.zoom_level):
-            try:
-                eye_side = {
-                    'left_eye': 'left',
-                    'right_eye': 'right',
-                }[name]
-            except AttributeError:
-                self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
-                response.success = False
-                return response
+        try:
+            eye_side = {
+                'left_eye': 'left',
+                'right_eye': 'right',
+            }[request.name]
+        except AttributeError:
+            self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
+            response.success = False
+            return response
 
-            if level == 'homing':
-                self.controller.homing(eye_side)
+        if request.zoom_level == 'homing':
+            self.controller.homing(eye_side)
 
-            elif level in ('in', 'out', 'inter'):
-                self.controller.send_zoom_command(eye_side, level)
+        elif request.zoom_level in ('in', 'out', 'inter'):
+            self.controller.send_zoom_command(eye_side, request.zoom_level)
 
-            else:
-                self.logger.warning("Invalid command sent to zoom controller (must be in ('homing', 'in', 'out' or 'inter')).")
-                response.success = False
-                return response
+        else:
+            self.logger.warning("Invalid command sent to zoom controller (must be in ('homing', 'in', 'out' or 'inter')).")
+            response.success = False
+            return response
 
         response.success = True
         return response
