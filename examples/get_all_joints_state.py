@@ -7,7 +7,7 @@ from reachy_msgs.msg import PidGains
 from reachy_msgs.srv import GetJointFullState
 
 
-class SetPidClient(Node):
+class FullJointsStateClient(Node):
     """Node for /get_joint_full_state client."""
 
     def __init__(self) -> None:
@@ -36,10 +36,10 @@ def main():
 
     rclpy.init()
 
-    set_pid_client = SetPidClient()
-    future = set_pid_client.call_get_joint_full_state_async()
+    full_state_joint_client = FullJointsStateClient()
+    future = full_state_joint_client.call_get_joint_full_state_async()
 
-    rclpy.spin_until_future_complete(set_pid_client, future)
+    rclpy.spin_until_future_complete(full_state_joint_client, future)
     result: GetJointFullState.Response = future.result()
 
     for (name, pos, temperature, compliant, speed_limit, torque_limit, pid) in zip(
