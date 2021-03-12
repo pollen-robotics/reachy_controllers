@@ -4,6 +4,7 @@ Joint State Controller Node.
 Exposes
  - all joints related information (pos/speed/load/temp)
  - joint compliancy service
+ - joint PID service
  - force sensors
  - fan management
 
@@ -11,7 +12,7 @@ The access to the hardware is done through an HAL.
 
 """
 import logging
-from typing import Type
+from typing import List, Type
 
 import rclpy
 from rclpy.node import Node
@@ -23,7 +24,8 @@ from reachy_pyluos_hal.joint_hal import JointLuos
 from reachy_msgs.msg import ForceSensor
 from reachy_msgs.msg import FanState
 from reachy_msgs.msg import JointTemperature
-from reachy_msgs.srv import GetJointFullState, SetJointCompliancy
+from reachy_msgs.msg import PidGains
+from reachy_msgs.srv import GetJointFullState, SetJointCompliancy, SetJointPidGains
 from reachy_msgs.srv import SetFanState
 
 
@@ -50,7 +52,7 @@ class JointStateController(Node):
         Service:
             - /get_joints_full_state GetJointFullState
             - /set_joint_compliancy SetJointCompliancy
-            - /set_joint_pid SetJointPID (TODO: impl :))
+            - /set_joint_pid SetJointPID
             - /set_fan_state SetFanState
         """
         super().__init__('joint_state_controller')
@@ -142,6 +144,13 @@ class JointStateController(Node):
         )
         self.logger.info(f'Create "{self.set_compliant_srv.srv_name}" service.')
 
+        self.set_pid_srv = self.create_service(
+            srv_type=SetJointPidGains,
+            srv_name='set_joint_pid',
+            callback=self.set_joint_pid,
+        )
+        self.logger.info(f'Create "{self.set_pid_srv.srv_name}" service.')
+
         self.fan_srv = self.create_service(
             srv_type=SetFanState,
             srv_name='set_fan_state',
@@ -198,11 +207,17 @@ class JointStateController(Node):
     def on_joint_goals(self, msg: JointState) -> None:
         """Handle new JointState goal by calling the robot hardware abstraction."""
         if msg.velocity:
-            self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
+            success = self.robot_hardware.set_goal_velocities(dict(zip(msg.name, msg.velocity)))
+            if not success:
+                self.logger.warning(f'Could not set goal velocities {dict(zip(msg.name, msg.velocity))}')
         if msg.effort:
-            self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
+            success = self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
+            if not success:
+                self.logger.warning(f'Could not set goal efforts {dict(zip(msg.name, msg.velocity))}')
         if msg.position:
-            self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
+            success = self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
+            if not success:
+                self.logger.warning(f'Could not set goal positions {dict(zip(msg.name, msg.velocity))}')
 
     def get_joint_full_state(self,
                              request: GetJointFullState.Request,
@@ -228,6 +243,7 @@ class JointStateController(Node):
         response.goal_position = self.robot_hardware.get_goal_positions(self.joint_names)
         response.speed_limit = self.robot_hardware.get_goal_velocities(self.joint_names)
         response.torque_limit = self.robot_hardware.get_goal_efforts(self.joint_names)
+        response.pid_gain = [_val_to_pid_gain(val) for val in self.robot_hardware.get_joint_pids(self.joint_names)]
 
         return response
 
@@ -242,6 +258,20 @@ class JointStateController(Node):
         response.success = success
         return response
 
+    def set_joint_pid(self,
+                      request: SetJointPidGains.Request,
+                      response: SetJointPidGains.Response,
+                      ) -> SetJointPidGains:
+        """Handle SetJointPidGains service request."""
+        pids = {
+            name: _pid_gain_to_val(pid_gain)
+            for name, pid_gain in zip(request.name, request.pid_gain)
+        }
+        success = self.robot_hardware.set_goal_pids(pids)
+
+        response.success = success
+        return response
+
     def set_fan_state(self,
                       request: SetFanState.Request,
                       response: SetFanState.Response
@@ -251,6 +281,33 @@ class JointStateController(Node):
         response.success = success
 
         return response
+
+
+def _val_to_pid_gain(values: List[float]) -> PidGains:
+    gains = PidGains()
+
+    if len(values) == 3:
+        gains.p, gains.i, gains.d = values
+    elif len(values) == 4:
+        (gains.cw_compliance_margin, gains.ccw_compliance_margin,
+         gains.cw_compliance_slope, gains.ccw_compliance_slope) = values
+    else:
+        raise ValueError(f'PID value should either be a triplet or a quadruplet ({values}!')
+
+    return gains
+
+
+def _pid_gain_to_val(pid_gain: PidGains) -> List[float]:
+    if pid_gain.p:
+        return [pid_gain.p, pid_gain.i, pid_gain.d]
+
+    elif pid_gain.cw_compliance_slope:
+        return [
+            pid_gain.cw_compliance_margin, pid_gain.ccw_compliance_margin,
+            pid_gain.cw_compliance_slope, pid_gain.ccw_compliance_slope
+        ]
+    else:
+        raise ValueError(f'PidGain with insufficent information ({pid_gain}!')
 
 
 def main() -> None:
