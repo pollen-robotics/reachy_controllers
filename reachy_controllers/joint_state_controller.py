@@ -60,7 +60,10 @@ class JointStateController(Node):
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger()
 
-        self.robot_hardware = robot_hardware(self.logger)
+        self.robot_hardware = robot_hardware(
+            '/home/nuc/dev/reachy_pyluos_hal/reachy_pyluos_hal/config/reachy_whole.yaml',
+            self.logger,
+            )
         self.robot_hardware.__enter__()
 
         self.fan_names = self.robot_hardware.get_all_fan_names()
