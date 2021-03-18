@@ -42,7 +42,6 @@ def get_config_file() -> Path:
     return Path(reachy_pyluos_hal.__file__).parent / 'config' / f'{model}.yaml'
 
 
-
 class JointStateController(Node):
     """Joint State Controller Node."""
 
