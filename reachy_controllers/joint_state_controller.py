@@ -12,6 +12,8 @@ The access to the hardware is done through an HAL.
 
 """
 import logging
+from pathlib import Path
+from subprocess import check_output
 from typing import List, Type
 
 import rclpy
@@ -19,6 +21,7 @@ from rclpy.node import Node
 
 from sensor_msgs.msg import JointState, Temperature
 
+import reachy_pyluos_hal
 from reachy_pyluos_hal.joint_hal import JointLuos
 
 from reachy_msgs.msg import ForceSensor
@@ -27,6 +30,17 @@ from reachy_msgs.msg import JointTemperature
 from reachy_msgs.msg import PidGains
 from reachy_msgs.srv import GetJointFullState, SetJointCompliancy, SetJointPidGains
 from reachy_msgs.srv import SetFanState
+
+
+def get_config_file() -> Path:
+    """Find the configuration file for your robot.
+
+    Refer to following link for details on how the identification is done:
+    https://github.com/pollen-robotics/reachy_pyluos_hal/blob/main/reachy_pyluos_hal/tools/reachy_identify_model.py
+    """
+    model = check_output(['reachy-identify-model']).strip().decode()
+    return Path(reachy_pyluos_hal.__file__).parent / 'config' / f'{model}.yaml'
+
 
 
 class JointStateController(Node):
@@ -60,10 +74,7 @@ class JointStateController(Node):
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger()
 
-        self.robot_hardware = robot_hardware(
-            '/home/nuc/dev/reachy_pyluos_hal/reachy_pyluos_hal/config/reachy_whole.yaml',
-            self.logger,
-            )
+        self.robot_hardware = robot_hardware(config_filename=str(get_config_file()), logger=self.logger)
         self.robot_hardware.__enter__()
 
         self.fan_names = self.robot_hardware.get_all_fan_names()
