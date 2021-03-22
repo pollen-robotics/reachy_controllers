@@ -1,6 +1,4 @@
 """Service node to manage zoom for cameras."""
-import time
-
 import rclpy
 from rclpy.node import Node
 
