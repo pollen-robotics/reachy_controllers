@@ -67,13 +67,12 @@ class ZoomControllerService(Node):
                             response: SetCameraZoomSpeed.Response,
                             ) -> SetCameraZoomSpeed.Response:
         """Handle set_camera_zoom_speed request."""
-        for name, speed in zip(request.name, request.speed):
-            if name not in ['left_eye', 'right_eye']:
-                self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
-                response.success = False
-                return response
+        if request.name not in ['left_eye', 'right_eye']:
+            self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
+            response.success = False
+            return response
 
-            self.controller.set_speed(speed)
+        self.controller.set_speed(request.speed)
         response.success = True
         return response
 
