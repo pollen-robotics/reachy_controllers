@@ -23,12 +23,12 @@ class ZoomControllerService(Node):
             self.controller.send_zoom_command(side, default_zoom_level)
 
         self.current_zoom_levels = {
-            'left': default_zoom_level,
-            'right': default_zoom_level,
+            'left_eye': default_zoom_level,
+            'right_eye': default_zoom_level,
         }
         self.current_zoom_speeds = {
-            'left': default_zoom_speed,
-            'right': default_zoom_speed,
+            'left_eye': default_zoom_speed,
+            'right_eye': default_zoom_speed,
         }
 
         self.get_zoom_level_service = self.create_service(
@@ -85,6 +85,7 @@ class ZoomControllerService(Node):
 
         if request.zoom_level == 'homing':
             self.controller.homing(eye_side)
+            self.current_zoom_levels[request.name] = 'zero'
 
         elif request.zoom_level in ('in', 'out', 'inter'):
             self.controller.send_zoom_command(eye_side, request.zoom_level)
@@ -103,7 +104,7 @@ class ZoomControllerService(Node):
                                 response: GetCameraZoomSpeed.Response,
                                 ) -> GetCameraZoomSpeed.Response:
         """Get the current camera zoom speed."""
-        response.zoom_level = self.current_zoom_speeds[request.name]
+        response.speed = self.current_zoom_speeds[request.name]
         return response
 
     def set_zoom_speed_callback(self,
