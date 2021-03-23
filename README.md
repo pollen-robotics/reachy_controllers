@@ -1,4 +1,4 @@
-# Reachy controllers
+# Reachy 2021 controllers
 
 ROS2 package handling Reachy:
 - joints state and command,
