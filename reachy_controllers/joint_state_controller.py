@@ -32,14 +32,14 @@ from reachy_msgs.srv import GetJointFullState, SetJointCompliancy, SetJointPidGa
 from reachy_msgs.srv import SetFanState
 
 
-def get_config_file() -> Path:
+def get_reachy_model() -> str:
     """Find the configuration file for your robot.
 
     Refer to following link for details on how the identification is done:
     https://github.com/pollen-robotics/reachy_pyluos_hal/blob/main/reachy_pyluos_hal/tools/reachy_identify_model.py
     """
     model = check_output(['reachy-identify-model']).strip().decode()
-    return Path(reachy_pyluos_hal.__file__).parent / 'config' / f'{model}.yaml'
+    return model
 
 
 class JointStateController(Node):
@@ -73,7 +73,7 @@ class JointStateController(Node):
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger()
 
-        self.robot_hardware = robot_hardware(config_filename=str(get_config_file()), logger=self.logger)
+        self.robot_hardware = robot_hardware(config_name=get_reachy_model(), logger=self.logger)
         self.robot_hardware.__enter__()
 
         self.fan_names = self.robot_hardware.get_all_fan_names()
