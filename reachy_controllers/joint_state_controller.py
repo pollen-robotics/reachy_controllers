@@ -12,7 +12,6 @@ The access to the hardware is done through an HAL.
 
 """
 import logging
-from pathlib import Path
 from subprocess import check_output
 from typing import List, Type
 
@@ -21,7 +20,6 @@ from rclpy.node import Node
 
 from sensor_msgs.msg import JointState, Temperature
 
-import reachy_pyluos_hal
 from reachy_pyluos_hal.joint_hal import JointLuos
 
 from reachy_msgs.msg import ForceSensor
