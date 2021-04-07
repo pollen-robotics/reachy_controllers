@@ -7,6 +7,7 @@ Camera Node.
 from functools import partial
 
 import cv2 as cv
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -50,6 +51,10 @@ class CameraPublisher(Node):
             'left': self.cap_left,
             'right': self.cap_right
         }
+        self.rot = {
+            'left': 3,  # 3 * 90 = 270
+            'right': 1,  # 1 * 90 = 90
+        }
 
         self.clock = self.get_clock()
         self.camera_publisher_left = self.create_publisher(CompressedImage, 'left_image', 1)
@@ -78,6 +83,7 @@ class CameraPublisher(Node):
     def publish_img(self, side: str) -> None:
         """Read image from the requested side and publishes it."""
         _, img = self.cap[side].read()
+        img = np.rot90(img, self.rot[side])
         img_msg = self.bridge.cv2_to_compressed_imgmsg(img)
         self.publisher[side].publish(img_msg)
 
