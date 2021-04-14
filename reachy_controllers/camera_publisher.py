@@ -82,10 +82,11 @@ class CameraPublisher(Node):
 
     def publish_img(self, side: str) -> None:
         """Read image from the requested side and publishes it."""
-        _, img = self.cap[side].read()
-        img = np.rot90(img, self.rot[side])
-        img_msg = self.bridge.cv2_to_compressed_imgmsg(img)
-        self.publisher[side].publish(img_msg)
+        b, img = self.cap[side].read()
+        if b:
+            img = np.rot90(img, self.rot[side])
+            img_msg = self.bridge.cv2_to_compressed_imgmsg(img)
+            self.publisher[side].publish(img_msg)
 
 
 def main() -> None:
