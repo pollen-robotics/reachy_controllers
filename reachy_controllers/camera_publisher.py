@@ -3,6 +3,7 @@ Camera Node.
 
 - publish /left_image and /right_image at the specified rate (default: 30Hz)
 
+Supported resolutions are: (1920,1080) at 15FPS, (1280,720) at 30FPS, (640,480) at 30FPS.
 """
 from functools import partial
 
@@ -23,7 +24,7 @@ class CameraPublisher(Node):
     def __init__(self,
                  left_port: str = '/dev/video0',
                  right_port: str = '/dev/video4',
-                 size: tuple = (1280, 720),
+                 resolution: tuple = (640, 480),
                  fps: float = 30.0) -> None:
         """Connect to both cameras, initialize the publishers."""
         super().__init__('camera_publisher')
@@ -35,8 +36,8 @@ class CameraPublisher(Node):
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
         self.cap_left.set(cv.CAP_PROP_FPS, fps)
-        self.cap_left.set(cv.CAP_PROP_FRAME_WIDTH, size[0])
-        self.cap_left.set(cv.CAP_PROP_FRAME_HEIGHT, size[1])
+        self.cap_left.set(cv.CAP_PROP_FRAME_WIDTH, resolution[0])
+        self.cap_left.set(cv.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
         self.image_right = CompressedImage()
         self.cap_right = cv.VideoCapture(right_port, apiPreference=cv.CAP_V4L2)
@@ -44,8 +45,8 @@ class CameraPublisher(Node):
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
         self.cap_right.set(cv.CAP_PROP_FPS, fps)
-        self.cap_right.set(cv.CAP_PROP_FRAME_WIDTH, size[0])
-        self.cap_right.set(cv.CAP_PROP_FRAME_HEIGHT, size[1])
+        self.cap_right.set(cv.CAP_PROP_FRAME_WIDTH, resolution[0])
+        self.cap_right.set(cv.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
         self.cap = {
             'left': self.cap_left,
