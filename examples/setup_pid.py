@@ -31,6 +31,8 @@ class SetPidClient(Node):
         request.pid_gain = [pid]
 
         client = self.create_client(srv_type=SetJointPidGains, srv_name='set_joint_pid')
+        while not client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
         return client.call_async(request)
 
 

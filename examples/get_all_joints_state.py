@@ -17,6 +17,8 @@ class FullJointsStateClient(Node):
     def call_get_joint_full_state_async(self) -> Future:
         """Run the async service call."""
         client = self.create_client(srv_type=GetJointFullState, srv_name='get_joint_full_state')
+        while not client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
         return client.call_async(GetJointFullState.Request())
 
 
