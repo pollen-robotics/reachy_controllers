@@ -22,8 +22,8 @@ class CameraPublisher(Node):
     """Camera Publisher class."""
 
     def __init__(self,
-                 left_port: str = '/dev/video0',
-                 right_port: str = '/dev/video4',
+                 left_port: str = '/dev/video4',
+                 right_port: str = '/dev/video0',
                  resolution: tuple = (640, 480),
                  fps: float = 30.0) -> None:
         """Connect to both cameras, initialize the publishers."""
