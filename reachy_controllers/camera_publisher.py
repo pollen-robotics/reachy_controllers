@@ -5,6 +5,7 @@ Camera Node.
 
 Supported resolutions are: (1920,1080) at 15FPS, (1280,720) at 30FPS, (640,480) at 30FPS.
 """
+import time
 from functools import partial
 
 import cv2 as cv
@@ -29,6 +30,8 @@ class CameraPublisher(Node):
         """Connect to both cameras, initialize the publishers."""
         super().__init__('camera_publisher')
         self.logger = self.get_logger()
+
+        time.sleep(30)
 
         self.image_left = CompressedImage()
         self.cap_left = cv.VideoCapture(left_port, apiPreference=cv.CAP_V4L2)
