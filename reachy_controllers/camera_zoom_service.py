@@ -11,7 +11,7 @@ from zoom_kurokesu import ZoomController
 class ZoomControllerService(Node):
     """Main node creating the zoom services for cameras."""
 
-    def __init__(self, default_zoom_speed: int = 30000, default_zoom_level: str = 'inter') -> None:
+    def __init__(self, default_zoom_speed: int = 10000, default_zoom_level: str = 'inter') -> None:
         """Set up the node and create the services."""
         super().__init__('camera_zoom_controller_service')
         self.logger = self.get_logger()
