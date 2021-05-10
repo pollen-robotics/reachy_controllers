@@ -10,10 +10,11 @@ def main():
     logger.info('Starting zero setting of Orbita, make sure that the head is correctly positioned.')
 
     try:
-        r = Reachy('full_kit', logging.getLogger())
+        r = Reachy('orbita', logging.getLogger())
         logger.info('Success opening Reachy.')
     except (TimeoutError, OSError, IOError):
         logger.error('Zero setting failed, make sure that there are no other scripts or notebooks accessing the robot.')
+        return
 
     r.start()
     r.set_orbita_values('zero', 'neck', {})
