@@ -14,6 +14,7 @@ def main():
         logger.info('Success opening Reachy.')
     except (TimeoutError, OSError, IOError):
         logger.error('Connection failed, make sure that there are no other scripts or notebooks accessing the robot.')
+        return
 
     r.start()
     r.set_orbita_values('fan_trigger_temperature_threshold', 'neck', {'disk_top': 15})
