@@ -1,4 +1,4 @@
-"""Check if Orbita's fan is working"""
+"""Check if Orbita's fan is working."""
 import logging
 import time
 from reachy_pyluos_hal.reachy import Reachy
