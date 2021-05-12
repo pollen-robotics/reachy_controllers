@@ -253,7 +253,14 @@ class ZoomControllerService(Node):
                                           response: Set2CamerasZoomLevel.Response,
                                           ) -> Set2CamerasZoomLevel.Response:
         """Handle set_2_cameras_zoom_level request."""
-        if request.left_zoom in ('in', 'out', 'inter') and request.right_zoom in ('in', 'out', 'inter'):
+        if request.left_zoom == 'homing' and request.right_zoom == 'homing':
+            self.controller.homing_two_cameras()
+            self.current_zoom_levels["left_eye"] = 'zero'
+            self.current_zoom_levels["right_eye"] = 'zero'
+            self.current_zoom["left_eye"] = 0
+            self.current_zoom["right_eye"] = 0
+
+        elif request.left_zoom in ('in', 'out', 'inter') and request.right_zoom in ('in', 'out', 'inter'):
             self.controller.send_zoom_command_two_cameras(request.left_zoom, request.right_zoom)
             self.current_zoom_levels["left_eye"] = request.left_zoom
             self.current_zoom["left_eye"] = int(self.controller.zoom_pos["left"][request.left_zoom]['zoom'])
