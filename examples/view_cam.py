@@ -63,7 +63,7 @@ class OpenCvCameraViewer:
 
     def __init__(self, side: str) -> None:
         """Initialize cap by connecting to the required video port and configuring it."""
-        self.cap = cv.VideoCapture(self.side_to_port[side])
+        self.cap = cv.VideoCapture(self.side_to_port[side], apiPreference=cv.CAP_V4L2)
         self.cap.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
         self.cap.set(cv.CAP_PROP_FPS, 30)
