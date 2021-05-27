@@ -106,7 +106,7 @@ def main():
 
     while True:
         image_getter.update_image()
-        cv.imshow(args.side + 'camera', image_getter.cam_img)
+        cv.imshow(args.side + ' camera', image_getter.cam_img)
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
 
