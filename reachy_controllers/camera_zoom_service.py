@@ -1,5 +1,6 @@
 """Service node to manage zoom for cameras."""
 import numpy as np
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -7,6 +8,7 @@ from rclpy.node import Node
 from reachy_msgs.srv import GetCameraZoomLevel, SetCameraZoomLevel
 from reachy_msgs.srv import GetCameraZoomSpeed, SetCameraZoomSpeed
 from reachy_msgs.srv import GetCameraZoomFocus, SetCameraZoomFocus
+from reachy_msgs.srv import SetFocusState
 
 from zoom_kurokesu import ZoomController
 
@@ -77,6 +79,11 @@ class ZoomControllerService(Node):
             SetCameraZoomFocus,
             'set_camera_zoom_focus',
             self.set_camera_zoom_focus_callback,
+        )
+
+        self.set_focus_state = self.create_client(
+            SetFocusState,
+            'set_focus_state',
         )
 
         self.logger.info('Node ready!')
@@ -179,12 +186,19 @@ class ZoomControllerService(Node):
         response.success = True
         return response
 
+    def start_autofocus(self):
+        req = SetFocusState.Request()
+        req.eye = ['left_eye', 'right_eye']
+        req.state = [True, True]
+        self.set_focus_state.call_async(req)
+        time.sleep(1.0)
 
 def main(args=None):
     """Run main loop."""
     rclpy.init(args=args)
 
     zoom_controller_service = ZoomControllerService()
+    zoom_controller_service.start_autofocus()
     rclpy.spin(zoom_controller_service)
 
     rclpy.shutdown()
