@@ -1,9 +1,14 @@
 """Service node to manage zoom for cameras."""
+import numpy as np
+import time
+
 import rclpy
 from rclpy.node import Node
 
 from reachy_msgs.srv import GetCameraZoomLevel, SetCameraZoomLevel
 from reachy_msgs.srv import GetCameraZoomSpeed, SetCameraZoomSpeed
+from reachy_msgs.srv import GetCameraZoomFocus, SetCameraZoomFocus
+from reachy_msgs.srv import SetFocusState
 
 from zoom_kurokesu import ZoomController
 
@@ -20,15 +25,21 @@ class ZoomControllerService(Node):
         self.controller.set_speed(default_zoom_speed)
         for side in ('left', 'right'):
             self.controller.homing(side)
-            self.controller.send_zoom_command(side, default_zoom_level)
+            self.controller.set_zoom_level(side, default_zoom_level)
 
-        self.current_zoom_levels = {
-            'left_eye': default_zoom_level,
-            'right_eye': default_zoom_level,
-        }
-        self.current_zoom_speeds = {
-            'left_eye': default_zoom_speed,
-            'right_eye': default_zoom_speed,
+        self.current_zoom_info = {
+            'left_eye': {
+                'zoom': self.controller.zoom_pos["left"][default_zoom_level]['zoom'],
+                'focus': self.controller.zoom_pos["left"][default_zoom_level]['focus'],
+                'speed': default_zoom_speed,
+                'zoom_level': default_zoom_level,
+            },
+            'right_eye': {
+                'zoom': self.controller.zoom_pos["left"][default_zoom_level]['zoom'],
+                'focus': self.controller.zoom_pos["left"][default_zoom_level]['focus'],
+                'speed': default_zoom_speed,
+                'zoom_level': default_zoom_level,
+            },
         }
 
         self.get_zoom_level_service = self.create_service(
@@ -58,6 +69,23 @@ class ZoomControllerService(Node):
         )
         self.logger.info(f'Launching "{self.set_speed_service.srv_name}" service.')
 
+        self.get_multiple_zoom_focus_service = self.create_service(
+            GetCameraZoomFocus,
+            'get_camera_zoom_focus',
+            self.get_camera_zoom_focus_callback,
+        )
+
+        self.set_multiple_zoom_focus_service = self.create_service(
+            SetCameraZoomFocus,
+            'set_camera_zoom_focus',
+            self.set_camera_zoom_focus_callback,
+        )
+
+        self.set_focus_state = self.create_client(
+            SetFocusState,
+            'set_focus_state',
+        )
+
         self.logger.info('Node ready!')
 
     def get_zoom_level_callback(self,
@@ -65,7 +93,10 @@ class ZoomControllerService(Node):
                                 response: GetCameraZoomLevel.Response,
                                 ) -> GetCameraZoomLevel.Response:
         """Get the current camera zoom level."""
-        response.zoom_level = self.current_zoom_levels[request.name]
+        if request.name not in ['left_eye', 'right_eye']:
+            self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
+            return response
+        response.zoom_level = self.current_zoom_info[request.name]['zoom_level']
         return response
 
     def set_zoom_command_callback(self,
@@ -78,18 +109,19 @@ class ZoomControllerService(Node):
                 'left_eye': 'left',
                 'right_eye': 'right',
             }[request.name]
-        except AttributeError:
+        except KeyError:
             self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
             response.success = False
             return response
 
         if request.zoom_level == 'homing':
             self.controller.homing(eye_side)
-            self.current_zoom_levels[request.name] = 'zero'
+            self.current_zoom_info[request.name]['zoom_level'] = 'zero'
 
         elif request.zoom_level in ('in', 'out', 'inter'):
-            self.controller.send_zoom_command(eye_side, request.zoom_level)
-            self.current_zoom_levels[request.name] = request.zoom_level
+            self.controller.set_zoom_level(eye_side, request.zoom_level)
+            self.current_zoom_info[request.name]['zoom_level'] = request.zoom_level
+            self.current_zoom_info[request.name]['zoom'] = int(self.controller.zoom_pos[eye_side][request.zoom_level]['zoom'])
 
         else:
             self.logger.warning("Invalid command sent to zoom controller (must be in ('homing', 'in', 'out' or 'inter')).")
@@ -104,7 +136,11 @@ class ZoomControllerService(Node):
                                 response: GetCameraZoomSpeed.Response,
                                 ) -> GetCameraZoomSpeed.Response:
         """Get the current camera zoom speed."""
-        response.speed = self.current_zoom_speeds[request.name]
+        if request.name not in ['left_eye', 'right_eye']:
+            self.logger.warning("Invalid name sent to zoom controller (must be in ('left_eye', 'right_eye')).")
+            return response
+
+        response.speed = self.current_zoom_info[request.name]['speed']
         return response
 
     def set_zoom_speed_callback(self,
@@ -118,17 +154,51 @@ class ZoomControllerService(Node):
             return response
 
         self.controller.set_speed(request.speed)
-        self.current_zoom_speeds[request.name] = request.speed
+        self.current_zoom_info[request.name] = request.speed
 
         response.success = True
         return response
 
+    def get_camera_zoom_focus_callback(self,
+                                request: GetCameraZoomFocus.Request,
+                                response: GetCameraZoomFocus.Response,
+                                ) -> GetCameraZoomFocus.Response:
+        response.left_focus = self.current_zoom_info['left_eye']['focus']
+        response.left_zoom = self.current_zoom_info['left_eye']['zoom']
+        response.right_focus = self.current_zoom_info['right_eye']['focus']
+        response.right_zoom = self.current_zoom_info['right_eye']['zoom']
+        return response
+
+    def set_camera_zoom_focus_callback(self,
+                                request: SetCameraZoomFocus.Request,
+                                response: SetCameraZoomFocus.Response,
+                                ) -> SetCameraZoomFocus.Response:
+        command = {'left': {}, 'right': {}}
+
+        for cmd_name in list(request.get_fields_and_field_types().keys()):
+            cmd = getattr(request, cmd_name)
+            if cmd.flag:
+                side, cmd_type = cmd_name.split('_')
+                command[side][cmd_type] = cmd.value
+                self.current_zoom_info[side+'_eye'][cmd_type] = cmd.value
+
+        self.controller._send_custom_command(command)
+        response.success = True
+        return response
+
+    def start_autofocus(self):
+        req = SetFocusState.Request()
+        req.eye = ['left_eye', 'right_eye']
+        req.state = [True, True]
+        self.set_focus_state.call_async(req)
+        time.sleep(1.0)
 
 def main(args=None):
     """Run main loop."""
     rclpy.init(args=args)
 
     zoom_controller_service = ZoomControllerService()
+    zoom_controller_service.start_autofocus()
     rclpy.spin(zoom_controller_service)
 
     rclpy.shutdown()

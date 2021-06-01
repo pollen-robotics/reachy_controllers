@@ -31,7 +31,7 @@ class CameraPublisher(Node):
         super().__init__('camera_publisher')
         self.logger = self.get_logger()
 
-        time.sleep(30)
+        time.sleep(15)
 
         self.image_left = CompressedImage()
         self.cap_left = cv.VideoCapture(left_port, apiPreference=cv.CAP_V4L2)
