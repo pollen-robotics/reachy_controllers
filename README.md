@@ -43,11 +43,15 @@ The callback of this topic uses [reachy_pyluos_hal](https://github.com/pollen-ro
 
 ## Services
 
+* **/get_joint_full_state** ([reachy_msgs/srv/GetJointFullState.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/GetJointFullState.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Returns position, velocity, effort, temperature, compliance, goal position, speed limit, torque limit and PID of requested joints.
+
+* **/get_camera_zoom_focus** ([reachy_msgs/srv/GetCameraZoomFocus.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/GetCameraZoomFocus.srv))[[camera_zoom_service](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/camera_zoom_service.py)] - Returns zoom and focus of right and left cameras.
+
+* **/set_camera_zoom_focus** ([reachy_msgs/srv/SetCameraZoomFocus.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetCameraZoomFocus.srv))[[camera_zoom_service](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/camera_zoom_service.py)] - Set zoom and/or focus of the requested camera.
+
 * **/set_camera_zoom_level** ([reachy_msgs/srv/SetCameraZoomLevel.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetCameraZoomLevel.srv))[[camera_zoom_controller_service](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/camera_zoom_service.py)] - Change the zoom on the given camera side to one of the predefined level, or perform homing. <br> See [zoom_kurokesu repository](https://github.com/pollen-robotics/zoom_kurokesu) for more information.
 
 * **/set_camera_zoom_speed** ([reachy_msgs/srv/SetCameraZoomSpeed.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetCameraZoomSpeed.srv))[[camera_zoom_controller_service](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/camera_zoom_service.py)] - Change the speed of the zoom motors. <br> See [zoom_kurokesu repository](https://github.com/pollen-robotics/zoom_kurokesu) for more information.
-
-* **/get_joint_full_state** ([reachy_msgs/srv/GetJointFullState.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/GetJointFullState.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Returns position, velocity, effort, temperature, compliance, goal position, speed limit, torque limit and PID of requested joints.
 
 * **/set_joint_compliancy** ([reachy_msgs/srv/SetJointCompliancy.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetJointCompliancy.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Set compliancy of the requested joints to the requested compliance boolean (True=compliant, False=stiff). 
 
