@@ -1,5 +1,4 @@
 """Service node to manage zoom for cameras."""
-import numpy as np
 import time
 
 import rclpy
@@ -160,9 +159,10 @@ class ZoomControllerService(Node):
         return response
 
     def get_camera_zoom_focus_callback(self,
-                                request: GetCameraZoomFocus.Request,
-                                response: GetCameraZoomFocus.Response,
-                                ) -> GetCameraZoomFocus.Response:
+                                       request: GetCameraZoomFocus.Request,
+                                       response: GetCameraZoomFocus.Response,
+                                       ) -> GetCameraZoomFocus.Response:
+        """Handle get_camera_zoom_focus callback."""
         response.left_focus = self.current_zoom_info['left_eye']['focus']
         response.left_zoom = self.current_zoom_info['left_eye']['zoom']
         response.right_focus = self.current_zoom_info['right_eye']['focus']
@@ -170,9 +170,10 @@ class ZoomControllerService(Node):
         return response
 
     def set_camera_zoom_focus_callback(self,
-                                request: SetCameraZoomFocus.Request,
-                                response: SetCameraZoomFocus.Response,
-                                ) -> SetCameraZoomFocus.Response:
+                                       request: SetCameraZoomFocus.Request,
+                                       response: SetCameraZoomFocus.Response,
+                                       ) -> SetCameraZoomFocus.Response:
+        """Handle set_camera_zoom_focus callback."""
         command = {'left': {}, 'right': {}}
 
         for cmd_name in list(request.get_fields_and_field_types().keys()):
@@ -187,11 +188,13 @@ class ZoomControllerService(Node):
         return response
 
     def start_autofocus(self):
+        """Call set_focus_state service."""
         req = SetFocusState.Request()
         req.eye = ['left_eye', 'right_eye']
         req.state = [True, True]
         self.set_focus_state.call_async(req)
         time.sleep(1.0)
+
 
 def main(args=None):
     """Run main loop."""
