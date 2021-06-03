@@ -42,6 +42,8 @@ class FanSwitcher(Node):
                 break
 
         for f_n in self.fans_names:
+            if f_n == 'neck_fan':
+                continue
             self._send_fan_request(f_n, True)
             self.logger.info(f'Turning on {f_n} for 5 seconds.')
             time.sleep(5.0)
