@@ -10,6 +10,10 @@ def generate_launch_description():
             executable='camera_publisher',
         ),
         Node(
+            package='reachy_focus',
+            executable='camera_focus',
+        ),
+        Node(
             package='reachy_controllers',
             executable='camera_zoom_service',
         ),
