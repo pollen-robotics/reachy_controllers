@@ -4,7 +4,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from reachy_msgs.msg import PidGains
 from reachy_msgs.srv import SetJointCompliancy, SetJointPidGains
-from reachy_msgs.msg import Gripper
+from reachy_msgs.srv import OpenGripper, CloseGripper
+
 import sys
 import numpy as np
 import time
@@ -37,11 +38,11 @@ class GripperController(Node):
             self.joint_states_cb,
             10)
 
-        self.cmd_sub = self.create_subscription(
-            msg_type=Gripper,
-            topic='grippers',
-            callback=self.cmd_cb,
-            qos_profile=5,
+        self.open_srv = self.create_service(
+            OpenGripper, 'open_grippers', self.open_cb,
+        )
+        self.close_srv = self.create_service(
+            CloseGripper, 'close_grippers', self.close_cb,
         )
 
         self.action_done_event = Event()
@@ -85,16 +86,19 @@ class GripperController(Node):
 
         self.get_logger().info('gripper control node ready')
 
-    def cmd_cb(self, msg):
-        if msg.close_l_gripper:
-            self.close_gripper('l_gripper', msg.l_gripper_force)
-        else:
-            self.open_gripper('l_gripper')
+    def open_cb(self, req, resp):
+        for g in req.name:
+            self.open_gripper(g)
 
-        if msg.close_r_gripper:
-            self.close_gripper('r_gripper', msg.r_gripper_force)
-        else:
-            self.open_gripper('r_gripper')
+        resp.success = True
+        return resp
+
+    def close_cb(self, req, resp):
+        for g, f in zip(req.name, req.force):
+            self.close_gripper(g, f)
+
+        resp.success = True
+        return resp
 
     def joint_states_cb(self, msg):
         if 'l_gripper' in msg.name:
