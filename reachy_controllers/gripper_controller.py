@@ -11,9 +11,9 @@ import numpy as np
 import time
 from threading import Event
 
-CLOSED_ANGLE=0.2
-OPEN_ANGLE= -0.398
-MAX_ANGLE_FORCE=8.0 #Angle offset to the goal position to "simulate" a force using the compliance slope
+CLOSED_ANGLE = 0.2
+OPEN_ANGLE = -0.398
+MAX_ANGLE_FORCE = 8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
 
 class GripperController(Node):
 
@@ -45,52 +45,48 @@ class GripperController(Node):
             10)
 
         self.action_done_event = Event()
-        self.gripper_pos={}
-        self.gripper_pos['l_gripper']=None
-        self.gripper_pos['r_gripper']=None
+        self.gripper_pos = {}
+        self.gripper_pos['l_gripper'] = None
+        self.gripper_pos['r_gripper'] = None
 
-        self.gripper_goal={}
-        self.gripper_goal['l_gripper']=None
-        self.gripper_goal['r_gripper']=None
+        self.gripper_goal = {}
+        self.gripper_goal['l_gripper'] = None
+        self.gripper_goal['r_gripper'] = None
 
-        self.gripper_vel={}
-        self.gripper_vel['l_gripper']=None
-        self.gripper_vel['r_gripper']=None
+        self.gripper_vel = {}
+        self.gripper_vel['l_gripper'] = None
+        self.gripper_vel['r_gripper'] = None
 
-        self.gripper_effort={}
-        self.gripper_effort['l_gripper']=None
-        self.gripper_effort['r_gripper']=None
+        self.gripper_effort = {}
+        self.gripper_effort['l_gripper'] = None
+        self.gripper_effort['r_gripper'] = None
         
     
-        self.state={}
-        self.state['l_gripper']='open'
-        self.state['r_gripper']='open'
+        self.state = {}
+        self.state['l_gripper'] = 'open'
+        self.state['r_gripper'] = 'open'
 
-        self.closing_traj={}
-        self.closing_traj['l_gripper']=[]
-        self.closing_traj['r_gripper']=[]
+        self.closing_traj = {}
+        self.closing_traj['l_gripper'] = []
+        self.closing_traj['r_gripper'] = []
 
-        self.closing_it={}
-        self.closing_it['l_gripper']=[]
-        self.closing_it['r_gripper']=[]
+        self.closing_it = {}
+        self.closing_it['l_gripper'] = []
+        self.closing_it['r_gripper'] = []
 
-        self.closing_force={}
-        self.closing_force['l_gripper']=0.0
-        self.closing_force['r_gripper']=0.0
+        self.closing_force = {}
+        self.closing_force['l_gripper'] = 0.0
+        self.closing_force['r_gripper'] = 0.0
 
-        self.client_futures=[]
-        
-        
-
+        self.client_futures = []
         
         timer_period = 0.1  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
         time.sleep(0.1)
-        #self.open_gripper('l_gripper')
-        #self.open_gripper('r_gripper')
+
+        self.get_logger().info('gripper control node ready')
 
     def cmd_cb(self,msg):
-
         if msg.close_l_gripper:
             self.close_gripper('l_gripper',msg.l_gripper_force)
         else:
@@ -102,26 +98,24 @@ class GripperController(Node):
             self.open_gripper('r_gripper')
                     
     def joint_states_cb(self, msg):
-
         if 'l_gripper' in msg.name:
             lgi=msg.name.index('l_gripper')
 
-            if len(msg.position)>0:
-                self.gripper_pos['l_gripper']=msg.position[lgi]
-            if len(msg.velocity)>0:
-                self.gripper_vel['l_gripper']=msg.velocity[lgi]
-            if len(msg.effort)>0:
-                self.gripper_effort['l_gripper']=msg.effort[lgi]
+            if len(msg.position) > 0:
+                self.gripper_pos['l_gripper'] = msg.position[lgi]
+            if len(msg.velocity) > 0:
+                self.gripper_vel['l_gripper'] = msg.velocity[lgi]
+            if len(msg.effort) > 0:
+                self.gripper_effort['l_gripper'] = msg.effort[lgi]
                 
         if 'r_gripper' in msg.name:
-            rgi=msg.name.index('r_gripper')
-            if len(msg.position)>0:
-                self.gripper_pos['r_gripper']=msg.position[rgi]
-            if len(msg.velocity)>0:                
-                self.gripper_vel['r_gripper']=msg.velocity[rgi]
-            if len(msg.effort)>0:
-                self.gripper_effort['r_gripper']=msg.effort[rgi]
-        
+            rgi = msg.name.index('r_gripper')
+            if len(msg.position) > 0:
+                self.gripper_pos['r_gripper'] = msg.position[rgi]
+            if len(msg.velocity) > 0:                
+                self.gripper_vel['r_gripper'] = msg.velocity[rgi]
+            if len(msg.effort) > 0:
+                self.gripper_effort['r_gripper'] = msg.effort[rgi]
         
     def timer_callback(self):
         self.handle_gripper('l_gripper')
@@ -135,21 +129,19 @@ class GripperController(Node):
         """
         #self.get_logger().info('GRIPPER: {} STATE: {} POS: {})'.format(g,self.state[g],self.gripper_pos[g]))
         #print(self.gripper_pos)
-        if self.state[g]=='opening':
+        if self.state[g] == 'opening':
             if self.gripper_pos[g] is None:
                 self.set_pid(g,1.0,32.0)
                 self.torque_on(g)
                 self.goto(g,OPEN_ANGLE)
                 
             else:
-
                 #self.goto(g,OPEN_ANGLE)
                 error=np.abs(self.gripper_pos[g]-OPEN_ANGLE)
                 #self.get_logger().info('error open: {} (pos: {} goal:{})'.format(np.degrees(error),np.degrees(self.gripper_pos[g]),np.degrees(OPEN_ANGLE)))
                 if np.abs(np.degrees(error))<1.5:
                     self.torque_off(g) #trying to save the motor...
-                    self.state[g]='open'
-                    
+                    self.state[g]='open' 
 
         elif self.state[g]=="start_closing":
             if self.gripper_pos[g] is not None:
@@ -160,20 +152,19 @@ class GripperController(Node):
             else:
                 self.state[g]='open'
                 
-        elif self.state[g]=='closing':
+        elif self.state[g] == 'closing':
             self.get_logger().info('Closing: {}'.format(g))
 
-            if self.closing_it[g]<len(self.closing_traj[g])-1:
-                self.closing_it[g]+=1
+            if self.closing_it[g] < len(self.closing_traj[g]) - 1:
+                self.closing_it[g] += 1
                 goal=self.closing_traj[g][self.closing_it[g]]
                 self.goto(g,goal)
 
-            
                 error=np.abs(self.gripper_pos[g]-goal)
                 self.get_logger().info('error: {} (pos: {} goal:{})'.format(np.degrees(error),np.degrees(self.gripper_pos[g]),np.degrees(goal)))
-                if np.degrees(error)>=15.0:
-                    self.set_pid(g,0.0,254.0)
-                    self.goto(g,self.gripper_pos[g]+np.radians(self.closing_force[g]*MAX_ANGLE_FORCE))
+                if np.degrees(error) >= 15.0:
+                    self.set_pid(g, 0.0, 254.0)
+                    self.goto(g, self.gripper_pos[g] + np.radians(self.closing_force[g] * MAX_ANGLE_FORCE))
                     self.state[g]='closed'
 
             else:
@@ -182,8 +173,6 @@ class GripperController(Node):
         elif self.state[g]=='closed':
             self.get_logger().info('Closed: {}'.format(g),once=True)
                     
-                
-            
     def close_gripper(self, g,forcelevel=0.5):
         self.torque_on(g)
         self.set_pid(g,0.0,254.0)
