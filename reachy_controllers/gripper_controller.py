@@ -11,9 +11,11 @@ import numpy as np
 import time
 from threading import Event
 
-CLOSED_ANGLE = 0.2
-OPEN_ANGLE = -0.398
-MAX_ANGLE_FORCE = 8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
+# Constants are defined for the right gripper
+# Use the opposite for the left one
+CLOSED_ANGLE = 0.3
+OPEN_ANGLE = -1.0
+MAX_ANGLE_FORCE = -8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
 
 
 class GripperController(Node):
