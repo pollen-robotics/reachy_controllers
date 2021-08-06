@@ -15,8 +15,8 @@ CLOSED_ANGLE = 0.2
 OPEN_ANGLE = -0.398
 MAX_ANGLE_FORCE = 8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
 
-class GripperController(Node):
 
+class GripperController(Node):
     def __init__(self):
         super().__init__('gripper_controller')
 
@@ -88,12 +88,12 @@ class GripperController(Node):
 
     def cmd_cb(self,msg):
         if msg.close_l_gripper:
-            self.close_gripper('l_gripper',msg.l_gripper_force)
+            self.close_gripper('l_gripper', msg.l_gripper_force)
         else:
             self.open_gripper('l_gripper')
             
         if msg.close_r_gripper:
-            self.close_gripper('r_gripper',msg.r_gripper_force)
+            self.close_gripper('r_gripper', msg.r_gripper_force)
         else:
             self.open_gripper('r_gripper')
                     
@@ -131,22 +131,22 @@ class GripperController(Node):
         #print(self.gripper_pos)
         if self.state[g] == 'opening':
             if self.gripper_pos[g] is None:
-                self.set_pid(g,1.0,32.0)
+                self.set_pid(g, 1.0, 32.0)
                 self.torque_on(g)
-                self.goto(g,OPEN_ANGLE)
+                self.goto(g, OPEN_ANGLE)
                 
             else:
                 #self.goto(g,OPEN_ANGLE)
-                error=np.abs(self.gripper_pos[g]-OPEN_ANGLE)
+                error=np.abs(self.gripper_pos[g] - OPEN_ANGLE)
                 #self.get_logger().info('error open: {} (pos: {} goal:{})'.format(np.degrees(error),np.degrees(self.gripper_pos[g]),np.degrees(OPEN_ANGLE)))
-                if np.abs(np.degrees(error))<1.5:
+                if np.abs(np.degrees(error)) < 1.5:
                     self.torque_off(g) #trying to save the motor...
                     self.state[g]='open' 
 
         elif self.state[g]=="start_closing":
             if self.gripper_pos[g] is not None:
-                self.closing_traj[g]=np.linspace(self.gripper_pos[g],CLOSED_ANGLE,10)
-                self.closing_it[g]=0
+                self.closing_traj[g] = np.linspace(self.gripper_pos[g], CLOSED_ANGLE, 10)
+                self.closing_it[g] = 0
                 self.state[g]='closing'
 
             else:
@@ -157,7 +157,7 @@ class GripperController(Node):
 
             if self.closing_it[g] < len(self.closing_traj[g]) - 1:
                 self.closing_it[g] += 1
-                goal=self.closing_traj[g][self.closing_it[g]]
+                goal = self.closing_traj[g][self.closing_it[g]]
                 self.goto(g,goal)
 
                 error=np.abs(self.gripper_pos[g]-goal)
@@ -165,7 +165,7 @@ class GripperController(Node):
                 if np.degrees(error) >= 15.0:
                     self.set_pid(g, 0.0, 254.0)
                     self.goto(g, self.gripper_pos[g] + np.radians(self.closing_force[g] * MAX_ANGLE_FORCE))
-                    self.state[g]='closed'
+                    self.state[g] = 'closed'
 
             else:
                 self.state[g]='closed'
@@ -173,40 +173,40 @@ class GripperController(Node):
         elif self.state[g]=='closed':
             self.get_logger().info('Closed: {}'.format(g),once=True)
                     
-    def close_gripper(self, g,forcelevel=0.5):
+    def close_gripper(self, g, forcelevel=0.5):
         self.torque_on(g)
-        self.set_pid(g,0.0,254.0)
+        self.set_pid(g, 0.0, 254.0)
 
 
         self.closing_force[g]=forcelevel
-        self.state[g]='start_closing'
+        self.state[g] = 'start_closing'
         self.get_logger().info('Closing gripper: {}'.format(g))
 
 
     def set_pid(self, g,margin, slope):
-        pid=SetJointPidGains.Request()
-        gains=PidGains()
-        pid.name=[g]
-        gains.cw_compliance_margin=margin
-        gains.ccw_compliance_margin=margin
-        gains.cw_compliance_slope=slope
-        gains.ccw_compliance_slope=slope
-        pid.pid_gain=[gains]
+        pid = SetJointPidGains.Request()
+        gains = PidGains()
+        pid.name = [g]
+        gains.cw_compliance_margin = margin
+        gains.ccw_compliance_margin = margin
+        gains.cw_compliance_slope = slope
+        gains.ccw_compliance_slope = slope
+        pid.pid_gain = [gains]
 
         self.client_futures.append(self.pid_gains_client.call_async(pid))
 
 
     def goto(self, g,pos):
-        J=JointState()
-        J.name=[g]
-        J.position=[pos]
+        J = JointState()
+        J.name = [g]
+        J.position = [pos]
         self.goal_publisher.publish(J)
         
     def open_gripper(self, g):
-        self.set_pid(g,1.0,32.0)
+        self.set_pid(g, 1.0, 32.0)
         self.torque_on(g)
-        self.goto(g,OPEN_ANGLE)
-        self.state[g]='opening'
+        self.goto(g, OPEN_ANGLE)
+        self.state[g] = 'opening'
             
         self.get_logger().info('Opening gripper')
 
@@ -249,8 +249,8 @@ def main(args=None):
             
             
         except KeyboardInterrupt:
-            gripper.set_pid('l_gripper',1.0,32.0)
-            gripper.set_pid('r_gripper',1.0,32.0)
+            gripper.set_pid('l_gripper', 1.0, 32.0)
+            gripper.set_pid('r_gripper', 1.0, 32.0)
             gripper.torque_off('l_gripper')
             gripper.torque_off('r_gripper')
             
@@ -258,8 +258,8 @@ def main(args=None):
             gripper.destroy_node()
             rclpy.shutdown()
         except BaseException:
-            gripper.set_pid('l_gripper',1.0,32.0)
-            gripper.set_pid('r_gripper',1.0,32.0)
+            gripper.set_pid('l_gripper', 1.0, 32.0)
+            gripper.set_pid('r_gripper', 1.0, 32.0)
             gripper.torque_off('l_gripper')
             gripper.torque_off('r_gripper')
             
