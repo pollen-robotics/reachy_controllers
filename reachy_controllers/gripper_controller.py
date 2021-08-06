@@ -14,7 +14,8 @@ from threading import Event
 # Use the opposite for the left one
 CLOSED_ANGLE = 0.3
 OPEN_ANGLE = -1.0
-MAX_ANGLE_FORCE = -8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
+MAX_ANGLE_FORCE = 8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
+ANGLE_ERROR = 10
 
 
 class GripperController(Node):
@@ -37,10 +38,11 @@ class GripperController(Node):
             10)
 
         self.cmd_sub = self.create_subscription(
-            Gripper,
-            'grippers',
-            self.cmd_cb,
-            10)
+            msg_type=Gripper,
+            topic='grippers',
+            callback=self.cmd_cb,
+            qos_profile=5,
+        )
 
         self.action_done_event = Event()
         self.gripper_pos = {}
@@ -125,20 +127,23 @@ class GripperController(Node):
         In the closing state, a trajectory is followed and
         when a tracking error is to big, we decide that we have grasped something.
         """
+        open_angle = OPEN_ANGLE if g == 'r_gripper' else -OPEN_ANGLE
+        closed_angle = CLOSED_ANGLE if g == 'r_gripper' else -CLOSED_ANGLE
+
         if self.state[g] == 'opening':
             if self.gripper_pos[g] is None:
                 self.set_pid(g, 1.0, 32.0)
                 self.torque_on(g)
-                self.goto(g, OPEN_ANGLE)
+                self.goto(g, open_angle)
             else:
-                error = np.abs(self.gripper_pos[g] - OPEN_ANGLE)
+                error = np.abs(self.gripper_pos[g] - open_angle)
                 if np.abs(np.degrees(error)) < 1.5:
                     self.torque_off(g)  # trying to save the motor...
                     self.state[g] = 'open'
 
         elif self.state[g] == "start_closing":
             if self.gripper_pos[g] is not None:
-                self.closing_traj[g] = np.linspace(self.gripper_pos[g], CLOSED_ANGLE, 10)
+                self.closing_traj[g] = np.linspace(self.gripper_pos[g], closed_angle, 20)
                 self.closing_it[g] = 0
                 self.state[g] = 'closing'
 
@@ -157,9 +162,12 @@ class GripperController(Node):
                 self.get_logger().info('error: {} (pos: {} goal:{})'.format(
                     np.degrees(error), np.degrees(self.gripper_pos[g]), np.degrees(goal)),
                 )
-                if np.degrees(error) >= 15.0:
+                if np.degrees(error) >= ANGLE_ERROR:
                     self.set_pid(g, 0.0, 254.0)
-                    self.goto(g, self.gripper_pos[g] + np.radians(self.closing_force[g] * MAX_ANGLE_FORCE))
+                    delta = np.radians(self.closing_force[g] * MAX_ANGLE_FORCE)
+                    if g == 'l_gripper':
+                        delta = -delta
+                    self.goto(g, self.gripper_pos[g] + delta)
                     self.state[g] = 'closed'
 
             else:
@@ -197,7 +205,7 @@ class GripperController(Node):
     def open_gripper(self, g):
         self.set_pid(g, 1.0, 32.0)
         self.torque_on(g)
-        self.goto(g, OPEN_ANGLE)
+        self.goto(g, OPEN_ANGLE if g == 'r_gripper' else -OPEN_ANGLE)
         self.state[g] = 'opening'
 
         self.get_logger().info('Opening gripper')
