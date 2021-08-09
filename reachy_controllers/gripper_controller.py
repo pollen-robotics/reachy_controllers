@@ -14,7 +14,7 @@ from threading import Event
 # Constants are defined for the right gripper
 # Use the opposite for the left one
 CLOSED_ANGLE = 0.3
-OPEN_ANGLE = -1.0
+OPEN_ANGLE = -0.85
 MAX_ANGLE_FORCE = 8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
 ANGLE_ERROR = 10
 
@@ -87,6 +87,8 @@ class GripperController(Node):
         self.get_logger().info('gripper control node ready')
 
     def open_cb(self, req, resp):
+        self.get_logger().info(f'/open_grippers cb {req}')
+
         for g in req.name:
             self.open_gripper(g)
 
@@ -94,6 +96,8 @@ class GripperController(Node):
         return resp
 
     def close_cb(self, req, resp):
+        self.get_logger().info(f'/close_grippers cb {req}')
+
         for g, f in zip(req.name, req.force):
             self.close_gripper(g, f)
 
@@ -141,7 +145,7 @@ class GripperController(Node):
                 self.goto(g, open_angle)
             else:
                 error = np.abs(self.gripper_pos[g] - open_angle)
-                if np.abs(np.degrees(error)) < 1.5:
+                if np.abs(np.degrees(error)) < 5:
                     self.torque_off(g)  # trying to save the motor...
                     self.state[g] = 'open'
 
