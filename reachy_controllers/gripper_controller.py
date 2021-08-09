@@ -181,6 +181,9 @@ class GripperController(Node):
             self.get_logger().info('Closed: {}'.format(g), once=True)
 
     def close_gripper(self, g, forcelevel=0.5):
+        if self.state[g] in ('start_closing', 'closing', 'closed'):
+            return
+
         self.torque_on(g)
         self.set_pid(g, 0.0, 254.0)
 
@@ -207,6 +210,9 @@ class GripperController(Node):
         self.goal_publisher.publish(J)
 
     def open_gripper(self, g):
+        if self.state[g] in ('open', 'opening'):
+            return
+
         self.set_pid(g, 1.0, 32.0)
         self.torque_on(g)
         self.goto(g, OPEN_ANGLE if g == 'r_gripper' else -OPEN_ANGLE)
