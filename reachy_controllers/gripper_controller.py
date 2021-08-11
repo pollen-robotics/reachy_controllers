@@ -1,6 +1,6 @@
 import time
 from collections import deque
-from threading import Thread
+from threading import Lock, Thread
 
 import numpy as np
 
@@ -136,6 +136,7 @@ class GripperController(Node):
                 self.gripper_state_update()
                 time.sleep(1 / UPDATE_FREQ)
 
+        self.lock = Lock()
         self.gripper_state_thread = Thread(target=gripper_state_update_thread)
         self.gripper_state_thread.daemon = True
         self.gripper_state_thread.start()
@@ -152,14 +153,15 @@ class GripperController(Node):
             gripper.opening = opening
             gripper.closing_force = force
 
-            if gripper.state == 'resting' and gripper.opening != 0.0:
-                gripper.state = 'moving'
+            with self.lock:
+                if gripper.state == 'resting' and gripper.opening != 0.0:
+                    gripper.state = 'moving'
 
-            elif gripper.state == 'moving' and gripper.filtered_opening == 0.0:
-                gripper.state = 'resting'
+                elif gripper.state == 'moving' and gripper.filtered_opening == 0.0:
+                    gripper.state = 'resting'
 
-            elif gripper.previous_state == 'holding' and gripper.is_releasing():
-                gripper.state = 'moving'
+                elif gripper.previous_state == 'holding' and gripper.is_releasing():
+                    gripper.state = 'moving'
 
     def joint_states_callback(self, msg: JointState):
         for name, position in zip(msg.name, msg.position):
@@ -173,32 +175,35 @@ class GripperController(Node):
 
             de = np.abs(np.diff(gripper._error)).sum()
             if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR and de < ANGLE_ERROR:
-                self.logger.info('Forcing detected!')
-                gripper.state = 'forcing'
+                with self.lock:
+                    self.logger.info(f'Forcing detected {gripper.previous_state} {gripper.state}!')
+                    gripper.state = 'forcing'
 
     def gripper_state_update(self):
-        for gripper in self.grippers.values():
-            if gripper.previous_state == 'resting' and gripper.state == 'moving':
-                self.turn_on(gripper)
+        with self.lock:
+            for gripper in self.grippers.values():
+                if gripper.previous_state == 'resting' and gripper.state == 'moving':
+                    self.turn_on(gripper)
 
-            elif gripper.previous_state == 'moving' and gripper.state == 'forcing':
-                self.smart_hold(gripper)
+                elif gripper.previous_state == 'moving' and gripper.state == 'forcing':
+                    self.smart_hold(gripper)
 
-            # elif gripper.previous_state == 'forcing' and gripper.state == 'holding':
-            #     self.logger.info(f'Smart holding for gripper "{name}"')
+                # elif gripper.previous_state == 'forcing' and gripper.state == 'holding':
+                #     self.logger.info(f'Smart holding for gripper "{name}"')
 
-            elif gripper.previous_state == 'holding' and gripper.state == 'moving':
-                self.manual_control(gripper)
+                elif gripper.previous_state == 'holding' and gripper.state == 'moving':
+                    self.manual_control(gripper)
 
-            elif gripper.previous_state == 'moving' and gripper.state == 'resting':
-                self.turn_off(gripper)
+                elif gripper.previous_state == 'moving' and gripper.state == 'resting':
+                    self.turn_off(gripper)
 
-            elif gripper.previous_state != gripper.state:
-                raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
+                elif gripper.previous_state != gripper.state:
+                    raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
 
-        self.publish_goals()
-        for gripper in self.grippers.values():
-            gripper.previous_state = gripper.state
+                self.publish_goals()
+
+            for gripper in self.grippers.values():
+                gripper.previous_state = gripper.state
 
     def turn_on(self, gripper):
         self.logger.info(f'Turn on gripper "{gripper.name}"')
