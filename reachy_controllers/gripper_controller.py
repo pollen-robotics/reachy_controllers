@@ -167,28 +167,26 @@ class GripperController(Node):
         for gripper in self.grippers.values():
             if gripper.previous_state == 'resting' and gripper.opening != 0.0:
                 self.turn_on(gripper)
+                gripper._opening.clear()
+                gripper._opening.append(0.0)
                 gripper.state = 'moving'
 
-            elif gripper.previous_state == 'moving' and gripper.filtered_opening < 0.1:
+            elif gripper.previous_state == 'moving' and (0 < gripper.filtered_opening < 0.1):
                 self.turn_off(gripper)
                 gripper.state = 'resting'
-
-            elif gripper.previous_state == 'moving' and gripper.state == 'forcing':
-                self.smart_hold(gripper)
-                gripper.previous_state = 'forcing'
-                gripper.state = 'holding'
-
-            elif gripper.previous_state == 'holding' and gripper.is_releasing():
-                self.manual_control(gripper)
-                gripper.state = 'moving'
 
             elif (
                 gripper.previous_state == 'moving' and
                 gripper.filtred_error > ANGLE_ERROR and
                 gripper.error_derivative < ANGLE_ERROR
             ):
-                self.logger.info(f'Forcing detected {gripper.previous_state} {gripper.state}!')
-                gripper.state = 'forcing'
+                self.logger.info(f'Forcing detected!')
+                self.smart_hold(gripper)
+                gripper.state = 'holding'
+
+            elif gripper.previous_state == 'holding' and gripper.is_releasing():
+                self.manual_control(gripper)
+                gripper.state = 'moving'
 
             elif gripper.previous_state != gripper.state:
                 raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
@@ -222,7 +220,7 @@ class GripperController(Node):
             if gripper.state == 'moving':
                 goals.name.append(gripper.name)
                 goals.position.append(gripper.goal_position)
-            elif gripper.state == 'holding' and gripper.previous_state == 'forcing':
+            elif gripper.state == 'holding' and gripper.previous_state == 'moving':
                 self.logger.info(f'Maintain hold to {gripper.hold_position}')
                 goals.name.append(gripper.name)
                 goals.position.append(gripper.hold_position)
