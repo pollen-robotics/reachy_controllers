@@ -102,12 +102,12 @@ class GripperController(Node):
         self.compliancy_client = self.create_client(SetJointCompliancy, 'set_joint_compliancy')
         while not self.compliancy_client.wait_for_service(timeout_sec=1.0):
             self.logger.info('service compliance not available, waiting again...')
-        self.logger.info(f'Client for "{self.compliancy_client.resolved_name}" is available.')
+        self.logger.info(f'Client for "{self.compliancy_client.srv_name}" is available.')
 
         self.pid_gains_client = self.create_client(SetJointPidGains, 'set_joint_pid')
         while not self.pid_gains_client.wait_for_service(timeout_sec=1.0):
             self.logger.info('service pid not available, waiting again...')
-        self.logger.info(f'Client for "{self.pid_gains_client.resolved_name}" is available.')
+        self.logger.info(f'Client for "{self.pid_gains_client.srv_name}" is available.')
 
         self.grippers_sub = self.create_subscription(
             msg_type=Gripper,
@@ -159,10 +159,13 @@ class GripperController(Node):
 
     def joint_states_callback(self, msg: JointState):
         for name, position in zip(msg.name, msg.position):
+            if name not in self.grippers:
+                continue
+
             gripper = self.grippers[name]
 
             gripper.present_position = position
-            gripper.error = gripper.goal_position - gripper.present_position
+            gripper.error = np.abs(gripper.goal_position - gripper.present_position)
 
             if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR:
                 gripper.state = 'forcing'
@@ -184,7 +187,7 @@ class GripperController(Node):
             elif gripper.previous_state == 'moving' and gripper.state == 'resting':
                 self.turn_off(gripper)
 
-            else:
+            elif gripper.previous_state != gripper.state:
                 raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
 
         self.publish_goals()
@@ -204,6 +207,7 @@ class GripperController(Node):
     def smart_hold(self, gripper):
         self.logger.info(f'Trigger smart holding for gripper "{gripper.name}"')
         self.set_pid(gripper, margin=0.0, slope=254.0)
+        gripper.previous_state = 'forcing'
         gripper.state = 'holding'
 
     def manual_control(self, gripper):
@@ -219,11 +223,13 @@ class GripperController(Node):
                 goals.name.append(gripper.name)
                 goals.position.append(gripper.goal_position)
             elif gripper.state == 'holding' and gripper.previous_state == 'forcing':
+                self.logger.info(f'Maintain hold to {gripper.hold_position}')
                 goals.name.append(gripper.name)
                 goals.position.append(gripper.hold_position)
 
-        self.logger.debug(f'Publish "{goals}" to "{self.joint_goals_publisher.topic_name}".')
-        self.joint_goals_publisher.publish(goals)
+        if goals.name:
+            self.logger.debug(f'Publish "{goals}" to "{self.joint_goals_publisher.topic_name}".')
+            self.joint_goals_publisher.publish(goals)
 
     def set_pid(self, gripper, margin, slope):
         gains = PidGains()
@@ -233,7 +239,7 @@ class GripperController(Node):
         gains.ccw_compliance_slope = slope
 
         pid = SetJointPidGains.Request()
-        pid.name.appemd(gripper.name)
+        pid.name.append(gripper.name)
         pid.pid_gain.append(gains)
 
         resp = self.pid_gains_client.call(pid)
