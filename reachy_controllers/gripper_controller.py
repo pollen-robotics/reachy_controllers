@@ -78,6 +78,12 @@ class GripperState:
     def filtred_error(self):
         return np.mean(self._error)
 
+    def is_releasing(self):
+        if self.name == 'r_gripper':
+            return self.goal_position < 0.95 * self.hold_position
+        else:
+            return self.goal_position > 1.05 * self.hold_position
+
 
 class GripperController(Node):
     def __init__(self):
@@ -152,8 +158,7 @@ class GripperController(Node):
             elif gripper.state == 'moving' and gripper.filtered_opening == 0.0:
                 gripper.state = 'resting'
 
-            elif gripper.previous_state == 'holding' and gripper.goal_position < 0.95 * gripper.hold_position:
-                # < if right > if left ?
+            elif gripper.previous_state == 'holding' and gripper.is_releasing():
                 gripper.state = 'moving'
 
     def joint_states_callback(self, msg: JointState):
@@ -192,7 +197,6 @@ class GripperController(Node):
                 raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
 
         self.publish_goals()
-
         for gripper in self.grippers.values():
             gripper.previous_state = gripper.state
 
