@@ -13,13 +13,13 @@ from reachy_msgs.msg import Gripper, PidGains
 from reachy_msgs.srv import SetJointCompliancy, SetJointPidGains
 
 # Constants are defined for the right gripper
-CLOSED_ANGLE = 0.3
+CLOSED_ANGLE = 0.4
 OPEN_ANGLE = -0.85
 MAX_ANGLE_FORCE = 0.15  # Angle offset to the goal position to "simulate" a force using the compliance slope
-ANGLE_ERROR = 0.2
+ANGLE_ERROR = 0.1
 
 UPDATE_FREQ = 100  # Hz
-WIN_FILTER_LENGTH = 10
+WIN_FILTER_LENGTH = 20
 
 
 class GripperState:
@@ -147,6 +147,7 @@ class GripperController(Node):
             gripper.closing_force = force
 
             if gripper.state == 'resting' and gripper.opening != 0.0:
+                # gripper._error.clear()
                 gripper.state = 'moving'
 
             elif gripper.state == 'moving' and gripper.filtered_opening == 0.0:
@@ -167,7 +168,9 @@ class GripperController(Node):
             gripper.present_position = position
             gripper.error = np.abs(gripper.goal_position - gripper.present_position)
 
-            if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR:
+            de = np.abs(np.diff(gripper._error)).sum()
+            if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR and de < ANGLE_ERROR:
+                self.logger.info('Forcing detected!')
                 gripper.state = 'forcing'
 
     def gripper_state_update(self):
@@ -213,6 +216,7 @@ class GripperController(Node):
     def manual_control(self, gripper):
         self.logger.info(f'Back to manual control for gripper "{gripper.name}"')
         self.set_pid(gripper, margin=1.0, slope=32.0)
+        # gripper._error.clear()
         gripper.state = 'moving'
 
     def publish_goals(self):
