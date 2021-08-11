@@ -1,280 +1,260 @@
+import time
+from collections import deque
+from threading import Thread
+
+import numpy as np
+
 import rclpy
 from rclpy.node import Node
 
 from sensor_msgs.msg import JointState
-from reachy_msgs.msg import PidGains
-from reachy_msgs.srv import SetJointCompliancy, SetJointPidGains
-from reachy_msgs.srv import OpenGripper, CloseGripper
 
-import sys
-import numpy as np
-import time
-from threading import Event
+from reachy_msgs.msg import Gripper, PidGains
+from reachy_msgs.srv import SetJointCompliancy, SetJointPidGains
 
 # Constants are defined for the right gripper
-# Use the opposite for the left one
 CLOSED_ANGLE = 0.3
 OPEN_ANGLE = -0.85
-MAX_ANGLE_FORCE = 8.0  # Angle offset to the goal position to "simulate" a force using the compliance slope
-ANGLE_ERROR = 10
+MAX_ANGLE_FORCE = 0.15  # Angle offset to the goal position to "simulate" a force using the compliance slope
+ANGLE_ERROR = 0.2
+
+UPDATE_FREQ = 100  # Hz
+WIN_FILTER_LENGTH = 10
+
+
+class GripperState:
+    def __init__(self, name) -> None:
+        self.name = name
+
+        self.present_position = OPEN_ANGLE
+        self._opening = deque([0.0], maxlen=WIN_FILTER_LENGTH)
+        self._error = deque([0.0], maxlen=WIN_FILTER_LENGTH)
+
+        self._closing_force = 0.0
+
+        self.previous_state = 'resting'
+        self.state = 'resting'
+
+        self.open_angle = OPEN_ANGLE if name == 'r_gripper' else -OPEN_ANGLE
+        self.closed_angle = CLOSED_ANGLE if name == 'r_gripper' else -CLOSED_ANGLE
+
+    @property
+    def opening(self):
+        return self._opening[-1]
+
+    @opening.setter
+    def opening(self, value):
+        self._opening.append(value)
+
+    @property
+    def filtered_opening(self):
+        return np.mean(self._opening)
+
+    @property
+    def closing_force(self):
+        return self._closing_force if self.name == 'r_gripper' else -self._closing_force
+
+    @closing_force.setter
+    def closing_force(self, value):
+        self._closing_force = value
+
+    @property
+    def hold_position(self):
+        return self.present_position + self.closing_force * MAX_ANGLE_FORCE
+
+    @property
+    def goal_position(self):
+        return self.open_angle + self.opening * (self.closed_angle - self.open_angle)
+
+    @property
+    def error(self):
+        return self._error[-1]
+
+    @error.setter
+    def error(self, value):
+        self._error.append(value)
+
+    @property
+    def filtred_error(self):
+        return np.mean(self._error)
 
 
 class GripperController(Node):
     def __init__(self):
         super().__init__('gripper_controller')
+        self.logger = self.get_logger()
 
-        self.goal_publisher = self.create_publisher(JointState, 'joint_goals', 1)
+        self.joint_states_sub = self.create_subscription(
+            msg_type=JointState,
+            topic='joint_states',
+            callback=self.joint_states_callback,
+            qos_profile=5,
+        )
+        self.logger.info(f'Subscribe to "{self.joint_states_sub.topic_name}".')
+
+        self.joint_goals_publisher = self.create_publisher(
+            msg_type=JointState,
+            topic='joint_goals',
+            qos_profile=5,
+        )
+        self.logger.info(f'Publish to "{self.joint_goals_publisher.topic_name}".')
+
         self.compliancy_client = self.create_client(SetJointCompliancy, 'set_joint_compliancy')
         while not self.compliancy_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('service compliance not available, waiting again...')
+            self.logger.info('service compliance not available, waiting again...')
+        self.logger.info(f'Client for "{self.compliancy_client.resolved_name}" is available.')
 
         self.pid_gains_client = self.create_client(SetJointPidGains, 'set_joint_pid')
         while not self.pid_gains_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('service pid not available, waiting again...')
+            self.logger.info('service pid not available, waiting again...')
+        self.logger.info(f'Client for "{self.pid_gains_client.resolved_name}" is available.')
 
-        self.joint_states_sub = self.create_subscription(
-            JointState,
-            'joint_states',
-            self.joint_states_cb,
-            10)
-
-        self.open_srv = self.create_service(
-            OpenGripper, 'open_grippers', self.open_cb,
+        self.grippers_sub = self.create_subscription(
+            msg_type=Gripper,
+            topic='grippers',
+            callback=self.grippers_callback,
+            qos_profile=5,
         )
-        self.close_srv = self.create_service(
-            CloseGripper, 'close_grippers', self.close_cb,
-        )
+        self.logger.info(f'Subscribe to "{self.grippers_sub.topic_name}".')
 
-        self.action_done_event = Event()
-        self.gripper_pos = {}
-        self.gripper_pos['l_gripper'] = None
-        self.gripper_pos['r_gripper'] = None
+        self.grippers = {
+            'l_gripper': GripperState(name='l_gripper'),
+            'r_gripper': GripperState(name='r_gripper'),
+        }
 
-        self.gripper_goal = {}
-        self.gripper_goal['l_gripper'] = None
-        self.gripper_goal['r_gripper'] = None
+        def gripper_state_update_thread():
+            for gripper in self.grippers.values():
+                self.turn_off(gripper)
 
-        self.gripper_vel = {}
-        self.gripper_vel['l_gripper'] = None
-        self.gripper_vel['r_gripper'] = None
+            while rclpy.ok():
+                self.gripper_state_update()
+                time.sleep(1 / UPDATE_FREQ)
 
-        self.gripper_effort = {}
-        self.gripper_effort['l_gripper'] = None
-        self.gripper_effort['r_gripper'] = None
+        self.gripper_state_thread = Thread(target=gripper_state_update_thread)
+        self.gripper_state_thread.daemon = True
+        self.gripper_state_thread.start()
 
-        self.state = {}
-        self.state['l_gripper'] = 'open'
-        self.state['r_gripper'] = 'open'
+        self.logger.info('Node ready!')
 
-        self.closing_traj = {}
-        self.closing_traj['l_gripper'] = []
-        self.closing_traj['r_gripper'] = []
+    def grippers_callback(self, msg: Gripper):
+        for name, opening, force in zip(msg.name, msg.opening, msg.force):
+            opening = np.clip(opening, 0.0, 1.0)
+            force = np.clip(force, 0.0, 1.0)
 
-        self.closing_it = {}
-        self.closing_it['l_gripper'] = []
-        self.closing_it['r_gripper'] = []
+            gripper = self.grippers[name]
 
-        self.closing_force = {}
-        self.closing_force['l_gripper'] = 0.0
-        self.closing_force['r_gripper'] = 0.0
+            gripper.opening = opening
+            gripper.closing_force = force
 
-        self.client_futures = []
+            if gripper.state == 'resting' and gripper.opening != 0.0:
+                gripper.state = 'moving'
 
-        timer_period = 0.1  # seconds
-        self.timer = self.create_timer(timer_period, self.timer_callback)
-        time.sleep(0.1)
+            elif gripper.state == 'moving' and gripper.filtered_opening == 0.0:
+                gripper.state = 'resting'
 
-        self.get_logger().info('gripper control node ready')
+            elif gripper.previous_state == 'holding' and 0.9 * gripper.filtered_opening < opening:
+                # TODO: Use hold_position < goal_position instead of opening?
+                # < if right > if left ?
+                gripper.state = 'moving'
 
-    def open_cb(self, req, resp):
-        self.get_logger().info(f'/open_grippers cb {req}')
+    def joint_states_callback(self, msg: JointState):
+        for name, position in zip(msg.name, msg.position):
+            gripper = self.grippers[name]
 
-        for g in req.name:
-            self.open_gripper(g)
+            gripper.present_position = position
+            gripper.error = gripper.goal_position - gripper.present_position
 
-        resp.success = True
-        return resp
+            if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR:
+                gripper.state = 'forcing'
 
-    def close_cb(self, req, resp):
-        self.get_logger().info(f'/close_grippers cb {req}')
+    def gripper_state_update(self):
+        for gripper in self.grippers.values():
+            if gripper.previous_state == 'resting' and gripper.state == 'moving':
+                self.turn_on(gripper)
 
-        for g, f in zip(req.name, req.force):
-            self.close_gripper(g, f)
+            elif gripper.previous_state == 'moving' and gripper.state == 'forcing':
+                self.smart_hold(gripper)
 
-        resp.success = True
-        return resp
+            # elif gripper.previous_state == 'forcing' and gripper.state == 'holding':
+            #     self.logger.info(f'Smart holding for gripper "{name}"')
 
-    def joint_states_cb(self, msg):
-        if 'l_gripper' in msg.name:
-            lgi = msg.name.index('l_gripper')
+            elif gripper.previous_state == 'holding' and gripper.state == 'moving':
+                self.manual_control(gripper)
 
-            if len(msg.position) > 0:
-                self.gripper_pos['l_gripper'] = msg.position[lgi]
-            if len(msg.velocity) > 0:
-                self.gripper_vel['l_gripper'] = msg.velocity[lgi]
-            if len(msg.effort) > 0:
-                self.gripper_effort['l_gripper'] = msg.effort[lgi]
-
-        if 'r_gripper' in msg.name:
-            rgi = msg.name.index('r_gripper')
-            if len(msg.position) > 0:
-                self.gripper_pos['r_gripper'] = msg.position[rgi]
-            if len(msg.velocity) > 0:
-                self.gripper_vel['r_gripper'] = msg.velocity[rgi]
-            if len(msg.effort) > 0:
-                self.gripper_effort['r_gripper'] = msg.effort[rgi]
-
-    def timer_callback(self):
-        self.handle_gripper('l_gripper')
-        self.handle_gripper('r_gripper')
-
-    def handle_gripper(self, g):
-        """
-        Kind of state machine for the grippers.
-
-        In the closing state, a trajectory is followed and
-        when a tracking error is to big, we decide that we have grasped something.
-        """
-        open_angle = OPEN_ANGLE if g == 'r_gripper' else -OPEN_ANGLE
-        closed_angle = CLOSED_ANGLE if g == 'r_gripper' else -CLOSED_ANGLE
-
-        if self.state[g] == 'opening':
-            if self.gripper_pos[g] is None:
-                self.set_pid(g, 1.0, 32.0)
-                self.torque_on(g)
-                self.goto(g, open_angle)
-            else:
-                error = np.abs(self.gripper_pos[g] - open_angle)
-                if np.abs(np.degrees(error)) < 5:
-                    self.torque_off(g)  # trying to save the motor...
-                    self.state[g] = 'open'
-
-        elif self.state[g] == "start_closing":
-            if self.gripper_pos[g] is not None:
-                self.closing_traj[g] = np.linspace(self.gripper_pos[g], closed_angle, 20)
-                self.closing_it[g] = 0
-                self.state[g] = 'closing'
+            elif gripper.previous_state == 'moving' and gripper.state == 'resting':
+                self.turn_off(gripper)
 
             else:
-                self.state[g] = 'open'
+                raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
 
-        elif self.state[g] == 'closing':
-            self.get_logger().info('Closing: {}'.format(g))
+        self.publish_goals()
 
-            if self.closing_it[g] < len(self.closing_traj[g]) - 1:
-                self.closing_it[g] += 1
-                goal = self.closing_traj[g][self.closing_it[g]]
-                self.goto(g, goal)
+        for gripper in self.grippers.values():
+            gripper.previous_state = gripper.state
 
-                error = np.abs(self.gripper_pos[g]-goal)
-                self.get_logger().info('error: {} (pos: {} goal:{})'.format(
-                    np.degrees(error), np.degrees(self.gripper_pos[g]), np.degrees(goal)),
-                )
-                if np.degrees(error) >= ANGLE_ERROR:
-                    self.set_pid(g, 0.0, 254.0)
-                    delta = np.radians(self.closing_force[g] * MAX_ANGLE_FORCE)
-                    if g == 'l_gripper':
-                        delta = -delta
-                    self.goto(g, self.gripper_pos[g] + delta)
-                    self.state[g] = 'closed'
+    def turn_on(self, gripper):
+        self.logger.info(f'Turn on gripper "{gripper.name}"')
+        self.set_pid(gripper, 1.0, 32.0)
+        self.torque_mode(gripper, on=True)
 
-            else:
-                self.state[g] = 'closed'
+    def turn_off(self, gripper):
+        self.logger.info(f'Turn off gripper "{gripper.name}"')
+        self.torque_mode(gripper, on=False)
 
-        elif self.state[g] == 'closed':
-            self.get_logger().info('Closed: {}'.format(g), once=True)
+    def smart_hold(self, gripper):
+        self.logger.info(f'Trigger smart holding for gripper "{gripper.name}"')
+        self.set_pid(gripper, margin=0.0, slope=254.0)
+        gripper.state = 'holding'
 
-    def close_gripper(self, g, forcelevel=0.5):
-        if self.state[g] in ('start_closing', 'closing', 'closed'):
-            return
+    def manual_control(self, gripper):
+        self.logger.info(f'Back to manual control for gripper "{gripper.name}"')
+        self.set_pid(gripper, margin=1.0, slope=32.0)
+        gripper.state = 'moving'
 
-        self.torque_on(g)
-        self.set_pid(g, 0.0, 254.0)
+    def publish_goals(self):
+        goals = JointState()
 
-        self.closing_force[g] = forcelevel
-        self.state[g] = 'start_closing'
-        self.get_logger().info('Closing gripper: {}'.format(g))
+        for gripper in self.grippers.values():
+            if gripper.state == 'moving':
+                goals.name.append(gripper.name)
+                goals.position.append(gripper.goal_position)
+            elif gripper.state == 'holding' and gripper.previous_state == 'forcing':
+                goals.name.append(gripper.name)
+                goals.position.append(gripper.hold_position)
 
-    def set_pid(self, g, margin, slope):
-        pid = SetJointPidGains.Request()
+        self.logger.debug(f'Publish "{goals}" to "{self.joint_goals_publisher.topic_name}".')
+        self.joint_goals_publisher.publish(goals)
+
+    def set_pid(self, gripper, margin, slope):
         gains = PidGains()
-        pid.name = [g]
         gains.cw_compliance_margin = margin
         gains.ccw_compliance_margin = margin
         gains.cw_compliance_slope = slope
         gains.ccw_compliance_slope = slope
-        pid.pid_gain = [gains]
 
-        self.client_futures.append(self.pid_gains_client.call_async(pid))
+        pid = SetJointPidGains.Request()
+        pid.name.appemd(gripper.name)
+        pid.pid_gain.append(gains)
 
-    def goto(self, g, pos):
-        J = JointState()
-        J.name = [g]
-        J.position = [pos]
-        self.goal_publisher.publish(J)
+        resp = self.pid_gains_client.call(pid)
+        self.logger.info(f'PID gains {(margin, slope)} set for "{gripper.name}" with resp "{resp.success}".')
 
-    def open_gripper(self, g):
-        if self.state[g] in ('open', 'opening'):
-            return
-
-        self.set_pid(g, 1.0, 32.0)
-        self.torque_on(g)
-        self.goto(g, OPEN_ANGLE if g == 'r_gripper' else -OPEN_ANGLE)
-        self.state[g] = 'opening'
-
-        self.get_logger().info('Opening gripper')
-
-    def torque_off(self, g):
-        self.get_logger().debug('Torque Off: {}'.format(g))
-
+    def torque_mode(self, gripper, on):
         req = SetJointCompliancy.Request()
-        req.name.append(g)
-        req.compliancy.append(True)
-        self.client_futures.append(self.compliancy_client.call_async(req))
+        req.name.append(gripper.name)
+        req.compliancy.append(not on)
 
-    def torque_on(self, g):
-        self.get_logger().debug('Torque On: {}'.format(g))
-
-        req = SetJointCompliancy.Request()
-        req.name.append(g)
-        req.compliancy.append(False)
-        self.client_futures.append(self.compliancy_client.call_async(req))
+        resp = self.compliancy_client.call(req)
+        self.logger.info(f'Compliance mode "{not on}" set for "{gripper.name}" with resp "{resp.success}".')
 
 
 def main(args=None):
     rclpy.init(args=args)
 
     gripper = GripperController()
+    rclpy.spin(gripper)
 
-    while rclpy.ok():
-
-        try:
-            rclpy.spin_once(gripper)
-            incomplete_futures = []
-            for f in gripper.client_futures:
-                if f.done():
-                    _ = f.result()
-                else:
-                    incomplete_futures.append(f)
-            gripper.client_futures = incomplete_futures
-
-        except KeyboardInterrupt:
-            gripper.set_pid('l_gripper', 1.0, 32.0)
-            gripper.set_pid('r_gripper', 1.0, 32.0)
-            gripper.torque_off('l_gripper')
-            gripper.torque_off('r_gripper')
-
-            print('server stopped cleanly')
-            gripper.destroy_node()
-            rclpy.shutdown()
-        except BaseException:
-            gripper.set_pid('l_gripper', 1.0, 32.0)
-            gripper.set_pid('r_gripper', 1.0, 32.0)
-            gripper.torque_off('l_gripper')
-            gripper.torque_off('r_gripper')
-
-            print('exception in server:', file=sys.stderr)
-            raise
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':
