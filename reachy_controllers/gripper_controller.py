@@ -1,6 +1,6 @@
 import time
 from collections import deque
-from threading import Lock, Thread
+from threading import Thread
 
 import numpy as np
 
@@ -78,6 +78,10 @@ class GripperState:
     def filtred_error(self):
         return np.mean(self._error)
 
+    @property
+    def error_derivative(self):
+        return np.abs(np.diff(self._error)).sum()
+
     def is_releasing(self):
         if self.name == 'r_gripper':
             return self.goal_position < 0.95 * self.hold_position
@@ -136,7 +140,6 @@ class GripperController(Node):
                 self.gripper_state_update()
                 time.sleep(1 / UPDATE_FREQ)
 
-        self.lock = Lock()
         self.gripper_state_thread = Thread(target=gripper_state_update_thread)
         self.gripper_state_thread.daemon = True
         self.gripper_state_thread.start()
@@ -144,74 +147,56 @@ class GripperController(Node):
         self.logger.info('Node ready!')
 
     def grippers_callback(self, msg: Gripper):
-        with self.lock:
-            for name, opening, force in zip(msg.name, msg.opening, msg.force):
-                opening = np.clip(opening, 0.0, 1.0)
-                force = np.clip(force, 0.0, 1.0)
-
-                gripper = self.grippers[name]
-
-                gripper.opening = opening
-                gripper.closing_force = force
-
-                if gripper.state == 'resting' and gripper.opening != 0.0:
-                    gripper.state = 'moving'
-
-                elif gripper.state == 'moving' and gripper.filtered_opening < 0.1:
-                    gripper.state = 'resting'
-
-                elif gripper.previous_state == 'holding' and gripper.is_releasing():
-                    gripper.state = 'moving'
+        for name, opening, force in zip(msg.name, msg.opening, msg.force):
+            if name not in self.grippers:
+                continue
+            gripper = self.grippers[name]
+            gripper.opening = np.clip(opening, 0.0, 1.0)
+            gripper.closing_force = np.clip(force, 0.0, 1.0)
 
     def joint_states_callback(self, msg: JointState):
-        with self.lock:
-            for name, position in zip(msg.name, msg.position):
-                if name not in self.grippers:
-                    continue
+        for name, position in zip(msg.name, msg.position):
+            if name not in self.grippers:
+                continue
 
-                gripper = self.grippers[name]
-
-                gripper.present_position = position
-                gripper.error = np.abs(gripper.goal_position - gripper.present_position)
-
-                de = np.abs(np.diff(gripper._error)).sum()
-                if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR and de < ANGLE_ERROR:
-                    self.logger.info(f'Forcing detected {gripper.previous_state} {gripper.state}!')
-                    gripper.state = 'forcing'
+            gripper = self.grippers[name]
+            gripper.present_position = position
+            gripper.error = np.abs(gripper.goal_position - gripper.present_position)
 
     def gripper_state_update(self):
-        if not hasattr(self, 'debug_bob'):
-            self.debug_bob = ('lol', 'lol')
+        for gripper in self.grippers.values():
+            if gripper.previous_state == 'resting' and gripper.opening != 0.0:
+                self.turn_on(gripper)
+                gripper.state = 'moving'
 
-        with self.lock:
-            for gripper in self.grippers.values():
-                if gripper.previous_state == 'resting' and gripper.state == 'moving':
-                    self.turn_on(gripper)
+            elif gripper.previous_state == 'moving' and gripper.filtered_opening < 0.1:
+                self.turn_off(gripper)
+                gripper.state = 'resting'
 
-                elif gripper.previous_state == 'moving' and gripper.state == 'forcing':
-                    self.smart_hold(gripper)
+            elif gripper.previous_state == 'moving' and gripper.state == 'forcing':
+                self.smart_hold(gripper)
+                gripper.previous_state = 'forcing'
+                gripper.state = 'holding'
 
-                # elif gripper.previous_state == 'forcing' and gripper.state == 'holding':
-                #     self.logger.info(f'Smart holding for gripper "{name}"')
+            elif gripper.previous_state == 'holding' and gripper.is_releasing():
+                self.manual_control(gripper)
+                gripper.state = 'moving'
 
-                elif gripper.previous_state == 'holding' and gripper.state == 'moving':
-                    self.manual_control(gripper)
+            elif (
+                gripper.previous_state == 'moving' and
+                gripper.filtred_error > ANGLE_ERROR and
+                gripper.error_derivative < ANGLE_ERROR
+            ):
+                self.logger.info(f'Forcing detected {gripper.previous_state} {gripper.state}!')
+                gripper.state = 'forcing'
 
-                elif gripper.previous_state == 'moving' and gripper.state == 'resting':
-                    self.turn_off(gripper)
+            elif gripper.previous_state != gripper.state:
+                raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
 
-                elif gripper.previous_state != gripper.state:
-                    raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
+        self.publish_goals()
 
-                self.publish_goals()
-
-            s = gripper.previous_state, gripper.state
-            if s != self.debug_bob:
-                self.logger.info(f'TRANS: {s}')
-                self.debug_bob = s
-
-            for gripper in self.grippers.values():
-                gripper.previous_state = gripper.state
+        for gripper in self.grippers.values():
+            gripper.previous_state = gripper.state
 
     def turn_on(self, gripper):
         self.logger.info(f'Turn on gripper "{gripper.name}"')
@@ -225,13 +210,10 @@ class GripperController(Node):
     def smart_hold(self, gripper):
         self.logger.info(f'Trigger smart holding for gripper "{gripper.name}"')
         self.set_pid(gripper, margin=0.0, slope=254.0)
-        gripper.previous_state = 'forcing'
-        gripper.state = 'holding'
 
     def manual_control(self, gripper):
         self.logger.info(f'Back to manual control for gripper "{gripper.name}"')
         self.set_pid(gripper, margin=1.0, slope=32.0)
-        gripper.state = 'moving'
 
     def publish_goals(self):
         goals = JointState()
@@ -260,16 +242,16 @@ class GripperController(Node):
         pid.name.append(gripper.name)
         pid.pid_gain.append(gains)
 
-        resp = self.pid_gains_client.call_async(pid)
-        # self.logger.info(f'PID gains {(margin, slope)} set for "{gripper.name}" with resp "{resp.success}".')
+        resp = self.pid_gains_client.call(pid)
+        self.logger.info(f'PID gains {(margin, slope)} set for "{gripper.name}" with resp "{resp.success}".')
 
     def torque_mode(self, gripper, on):
         req = SetJointCompliancy.Request()
         req.name.append(gripper.name)
         req.compliancy.append(not on)
 
-        resp = self.compliancy_client.call_async(req)
-        # self.logger.info(f'Compliance mode "{not on}" set for "{gripper.name}" with resp "{resp.success}".')
+        resp = self.compliancy_client.call(req)
+        self.logger.info(f'Compliance mode "{not on}" set for "{gripper.name}" with resp "{resp.success}".')
 
 
 def main(args=None):
