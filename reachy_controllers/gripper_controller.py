@@ -180,7 +180,7 @@ class GripperController(Node):
                 gripper.filtred_error > ANGLE_ERROR and
                 gripper.error_derivative < ANGLE_ERROR
             ):
-                self.logger.info(f'Forcing detected!')
+                self.logger.info('Forcing detected!')
                 self.smart_hold(gripper)
                 gripper.state = 'holding'
 
