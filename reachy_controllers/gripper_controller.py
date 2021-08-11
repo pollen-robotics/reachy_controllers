@@ -144,42 +144,45 @@ class GripperController(Node):
         self.logger.info('Node ready!')
 
     def grippers_callback(self, msg: Gripper):
-        for name, opening, force in zip(msg.name, msg.opening, msg.force):
-            opening = np.clip(opening, 0.0, 1.0)
-            force = np.clip(force, 0.0, 1.0)
+        with self.lock:
+            for name, opening, force in zip(msg.name, msg.opening, msg.force):
+                opening = np.clip(opening, 0.0, 1.0)
+                force = np.clip(force, 0.0, 1.0)
 
-            gripper = self.grippers[name]
+                gripper = self.grippers[name]
 
-            gripper.opening = opening
-            gripper.closing_force = force
+                gripper.opening = opening
+                gripper.closing_force = force
 
-            with self.lock:
                 if gripper.state == 'resting' and gripper.opening != 0.0:
                     gripper.state = 'moving'
 
-                elif gripper.state == 'moving' and gripper.filtered_opening == 0.0:
+                elif gripper.state == 'moving' and gripper.filtered_opening < 0.1:
                     gripper.state = 'resting'
 
                 elif gripper.previous_state == 'holding' and gripper.is_releasing():
                     gripper.state = 'moving'
 
     def joint_states_callback(self, msg: JointState):
-        for name, position in zip(msg.name, msg.position):
-            if name not in self.grippers:
-                continue
+        with self.lock:
+            for name, position in zip(msg.name, msg.position):
+                if name not in self.grippers:
+                    continue
 
-            gripper = self.grippers[name]
+                gripper = self.grippers[name]
 
-            gripper.present_position = position
-            gripper.error = np.abs(gripper.goal_position - gripper.present_position)
+                gripper.present_position = position
+                gripper.error = np.abs(gripper.goal_position - gripper.present_position)
 
-            de = np.abs(np.diff(gripper._error)).sum()
-            if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR and de < ANGLE_ERROR:
-                with self.lock:
+                de = np.abs(np.diff(gripper._error)).sum()
+                if gripper.previous_state == 'moving' and gripper.filtred_error > ANGLE_ERROR and de < ANGLE_ERROR:
                     self.logger.info(f'Forcing detected {gripper.previous_state} {gripper.state}!')
                     gripper.state = 'forcing'
 
     def gripper_state_update(self):
+        if not hasattr(self, 'debug_bob'):
+            self.debug_bob = ('lol', 'lol')
+
         with self.lock:
             for gripper in self.grippers.values():
                 if gripper.previous_state == 'resting' and gripper.state == 'moving':
@@ -201,6 +204,11 @@ class GripperController(Node):
                     raise EnvironmentError(f'Unknown transition {gripper.previous_state} -> {gripper.state}')
 
                 self.publish_goals()
+
+            s = gripper.previous_state, gripper.state
+            if s != self.debug_bob:
+                self.logger.info(f'TRANS: {s}')
+                self.debug_bob = s
 
             for gripper in self.grippers.values():
                 gripper.previous_state = gripper.state
@@ -252,16 +260,16 @@ class GripperController(Node):
         pid.name.append(gripper.name)
         pid.pid_gain.append(gains)
 
-        resp = self.pid_gains_client.call(pid)
-        self.logger.info(f'PID gains {(margin, slope)} set for "{gripper.name}" with resp "{resp.success}".')
+        resp = self.pid_gains_client.call_async(pid)
+        # self.logger.info(f'PID gains {(margin, slope)} set for "{gripper.name}" with resp "{resp.success}".')
 
     def torque_mode(self, gripper, on):
         req = SetJointCompliancy.Request()
         req.name.append(gripper.name)
         req.compliancy.append(not on)
 
-        resp = self.compliancy_client.call(req)
-        self.logger.info(f'Compliance mode "{not on}" set for "{gripper.name}" with resp "{resp.success}".')
+        resp = self.compliancy_client.call_async(req)
+        # self.logger.info(f'Compliance mode "{not on}" set for "{gripper.name}" with resp "{resp.success}".')
 
 
 def main(args=None):
