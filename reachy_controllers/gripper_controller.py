@@ -147,14 +147,12 @@ class GripperController(Node):
             gripper.closing_force = force
 
             if gripper.state == 'resting' and gripper.opening != 0.0:
-                # gripper._error.clear()
                 gripper.state = 'moving'
 
             elif gripper.state == 'moving' and gripper.filtered_opening == 0.0:
                 gripper.state = 'resting'
 
-            elif gripper.previous_state == 'holding' and 0.9 * gripper.filtered_opening < opening:
-                # TODO: Use hold_position < goal_position instead of opening?
+            elif gripper.previous_state == 'holding' and gripper.goal_position < 0.95 * gripper.hold_position:
                 # < if right > if left ?
                 gripper.state = 'moving'
 
@@ -216,7 +214,6 @@ class GripperController(Node):
     def manual_control(self, gripper):
         self.logger.info(f'Back to manual control for gripper "{gripper.name}"')
         self.set_pid(gripper, margin=1.0, slope=32.0)
-        # gripper._error.clear()
         gripper.state = 'moving'
 
     def publish_goals(self):
