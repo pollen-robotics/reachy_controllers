@@ -1,3 +1,23 @@
+"""
+Gripper High-level Controller Node.
+
+Listen to opening/force messages for each gripper and automatically adjusts the gripper state in function.
+
+This controller tries to automatically avoid gripper overheating by detecting forcing.
+This typically happens when holding an object, and adjusting the hold position.
+It also tunes the compliances and PIDs depending on the state.
+
+Grippers can be in one of those states:
+
+- resting: the compliance is turned on and the motor is resting while waiting for new commands
+- moving: you have direct control of the gripper between its open and close position (using the opening scalar from 0 to 1)
+- holding: a forcing has been detected (basically the gripper can not reach the desired goal position).
+    A new hold position is computed from the current forcing position and the requested hold position.
+    The PIDs are also adjusted to diminish overheating.
+    This position will be held until the opening value is back to a release value.
+
+"""
+
 import time
 from collections import deque
 from threading import Thread
@@ -23,7 +43,10 @@ WIN_FILTER_LENGTH = 20
 
 
 class GripperState:
+    """Represent the current gripper state."""
+
     def __init__(self, name) -> None:
+        """Set up its base state."""
         self.name = name
 
         self.present_position = OPEN_ANGLE
@@ -40,6 +63,7 @@ class GripperState:
 
     @property
     def opening(self):
+        """Get the requested opening."""
         return self._opening[-1]
 
     @opening.setter
@@ -48,10 +72,12 @@ class GripperState:
 
     @property
     def filtered_opening(self):
+        """Get the filtered opening (used to avoid high-frequency changed of states)."""
         return np.mean(self._opening)
 
     @property
     def closing_force(self):
+        """Get the requested closing force."""
         return self._closing_force if self.name == 'r_gripper' else -self._closing_force
 
     @closing_force.setter
@@ -60,14 +86,17 @@ class GripperState:
 
     @property
     def hold_position(self):
+        """Compute the hold position based on the current position and the requested closing force."""
         return self.present_position + self.closing_force * MAX_ANGLE_FORCE
 
     @property
     def goal_position(self):
+        """Compute the goal position based on the requested opening."""
         return self.open_angle + self.opening * (self.closed_angle - self.open_angle)
 
     @property
     def error(self):
+        """Compute the position error of the gripper (diff between goal and present angle)."""
         return self._error[-1]
 
     @error.setter
@@ -76,13 +105,16 @@ class GripperState:
 
     @property
     def filtred_error(self):
+        """Filter the position error (used to detect forcing)."""
         return np.mean(self._error)
 
     @property
     def error_derivative(self):
+        """Compute the derivative of the position error (used to detect constant forcing)."""
         return np.abs(np.diff(self._error)).sum()
 
     def is_releasing(self):
+        """Check whether the gripper is releasing its hold."""
         if self.name == 'r_gripper':
             return self.goal_position < 0.95 * self.hold_position
         else:
@@ -90,7 +122,15 @@ class GripperState:
 
 
 class GripperController(Node):
+    """Gripper High-level controller node."""
+
     def __init__(self):
+        """Prepare the GripperController node.
+
+        Listen to topic /grippers for new opening/force commands.
+        Create service client for compliancy and PID tuning.
+
+        """
         super().__init__('gripper_controller')
         self.logger = self.get_logger()
 
@@ -147,14 +187,16 @@ class GripperController(Node):
         self.logger.info('Node ready!')
 
     def grippers_callback(self, msg: Gripper):
+        """Get latest Gripper msg from /grippers."""
         for name, opening, force in zip(msg.name, msg.opening, msg.force):
             if name not in self.grippers:
                 continue
             gripper = self.grippers[name]
             gripper.opening = np.clip(opening, 0.0, 1.0)
-            gripper.closing_force = np.clip(force, 0.0, 1.0)
+            gripper.closing_force = force
 
     def joint_states_callback(self, msg: JointState):
+        """Get latest JointState from /joint_states."""
         for name, position in zip(msg.name, msg.position):
             if name not in self.grippers:
                 continue
@@ -164,6 +206,7 @@ class GripperController(Node):
             gripper.error = np.abs(gripper.goal_position - gripper.present_position)
 
     def gripper_state_update(self):
+        """Update grippers state machine."""
         for gripper in self.grippers.values():
             if gripper.previous_state == 'resting' and gripper.opening != 0.0:
                 self.turn_on(gripper)
@@ -197,23 +240,28 @@ class GripperController(Node):
             gripper.previous_state = gripper.state
 
     def turn_on(self, gripper):
+        """Turn on the gripper."""
         self.logger.info(f'Turn on gripper "{gripper.name}"')
         self.set_pid(gripper, 1.0, 32.0)
         self.torque_mode(gripper, on=True)
 
     def turn_off(self, gripper):
+        """Turn off gripper."""
         self.logger.info(f'Turn off gripper "{gripper.name}"')
         self.torque_mode(gripper, on=False)
 
     def smart_hold(self, gripper):
+        """Trigger smart hold with fixed goal position matching the grasped object shape."""
         self.logger.info(f'Trigger smart holding for gripper "{gripper.name}"')
         self.set_pid(gripper, margin=0.0, slope=254.0)
 
     def manual_control(self, gripper):
+        """Switch to manual control of the gripper."""
         self.logger.info(f'Back to manual control for gripper "{gripper.name}"')
         self.set_pid(gripper, margin=1.0, slope=32.0)
 
     def publish_goals(self):
+        """Publish new /goal_states for grippers."""
         goals = JointState()
 
         for gripper in self.grippers.values():
@@ -230,6 +278,7 @@ class GripperController(Node):
             self.joint_goals_publisher.publish(goals)
 
     def set_pid(self, gripper, margin, slope):
+        """Set gripper PID to new value (use margin/slope for AX-18)."""
         gains = PidGains()
         gains.cw_compliance_margin = margin
         gains.ccw_compliance_margin = margin
@@ -244,6 +293,7 @@ class GripperController(Node):
         self.logger.info(f'PID gains {(margin, slope)} set for "{gripper.name}" with resp "{resp.success}".')
 
     def torque_mode(self, gripper, on):
+        """Set gripper torque to new value."""
         req = SetJointCompliancy.Request()
         req.name.append(gripper.name)
         req.compliancy.append(not on)
@@ -253,6 +303,7 @@ class GripperController(Node):
 
 
 def main(args=None):
+    """Run gripper controller main loop."""
     rclpy.init(args=args)
 
     gripper = GripperController()
