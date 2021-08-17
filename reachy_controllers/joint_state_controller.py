@@ -224,11 +224,11 @@ class JointStateController(Node):
         if msg.effort:
             success = self.robot_hardware.set_goal_efforts(dict(zip(msg.name, msg.effort)))
             if not success:
-                self.logger.warning(f'Could not set goal efforts {dict(zip(msg.name, msg.velocity))}')
+                self.logger.warning(f'Could not set goal efforts {dict(zip(msg.name, msg.effort))}')
         if msg.position:
             success = self.robot_hardware.set_goal_positions(dict(zip(msg.name, msg.position)))
             if not success:
-                self.logger.warning(f'Could not set goal positions {dict(zip(msg.name, msg.velocity))}')
+                self.logger.warning(f'Could not set goal positions {dict(zip(msg.name, msg.position))}')
 
     def get_joint_full_state(self,
                              request: GetJointFullState.Request,

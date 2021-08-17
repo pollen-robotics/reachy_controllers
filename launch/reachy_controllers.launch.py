@@ -17,4 +17,8 @@ def generate_launch_description():
             package='reachy_controllers',
             executable='camera_zoom_service',
         ),
+        Node(
+            package='reachy_controllers',
+            executable='gripper_controller',
+        ),
     ])
