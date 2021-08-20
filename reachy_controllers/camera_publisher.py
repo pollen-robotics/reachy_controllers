@@ -9,7 +9,6 @@ import time
 from functools import partial
 
 import cv2 as cv
-import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -23,10 +22,10 @@ class CameraPublisher(Node):
     """Camera Publisher class."""
 
     def __init__(self,
-                 left_port: str = '/dev/video4',
-                 right_port: str = '/dev/video0',
-                 resolution: tuple = (640, 480),
-                 fps: float = 30.0) -> None:
+                 left_port: str = '/dev/video0',
+                 right_port: str = '/dev/video2',
+                 resolution: tuple = (600, 800),
+                 fps: int = 30) -> None:
         """Connect to both cameras, initialize the publishers."""
         super().__init__('camera_publisher')
         self.logger = self.get_logger()
@@ -34,30 +33,24 @@ class CameraPublisher(Node):
         time.sleep(15)
 
         self.image_left = CompressedImage()
-        self.cap_left = cv.VideoCapture(left_port, apiPreference=cv.CAP_V4L2)
+        self.cap_left = cv.VideoCapture(left_port)
 
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-        self.cap_left.set(cv.CAP_PROP_FPS, fps)
         self.cap_left.set(cv.CAP_PROP_FRAME_WIDTH, resolution[0])
         self.cap_left.set(cv.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
         self.image_right = CompressedImage()
-        self.cap_right = cv.VideoCapture(right_port, apiPreference=cv.CAP_V4L2)
+        self.cap_right = cv.VideoCapture(right_port)
 
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
         self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-        self.cap_right.set(cv.CAP_PROP_FPS, fps)
         self.cap_right.set(cv.CAP_PROP_FRAME_WIDTH, resolution[0])
         self.cap_right.set(cv.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
         self.cap = {
             'left': self.cap_left,
             'right': self.cap_right
-        }
-        self.rot = {
-            'left': 3,  # 3 * 90 = 270
-            'right': 1,  # 1 * 90 = 90
         }
 
         self.clock = self.get_clock()
@@ -90,7 +83,6 @@ class CameraPublisher(Node):
         if not b:
             self.logger.warning('Failed to grab frame!')
             return
-        img = np.rot90(img, self.rot[side])
         img_msg = self.bridge.cv2_to_compressed_imgmsg(img)
         self.publisher[side].publish(img_msg)
 
