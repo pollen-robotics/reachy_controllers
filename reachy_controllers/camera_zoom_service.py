@@ -9,8 +9,6 @@ from reachy_msgs.srv import GetCameraZoomSpeed, SetCameraZoomSpeed
 from reachy_msgs.srv import GetCameraZoomFocus, SetCameraZoomFocus
 from reachy_msgs.srv import SetFocusState
 
-from zoom_kurokesu import ZoomController
-
 
 class ZoomControllerService(Node):
     """Main node creating the zoom services for cameras."""
@@ -20,24 +18,19 @@ class ZoomControllerService(Node):
         super().__init__('camera_zoom_controller_service')
         self.logger = self.get_logger()
 
-        self.controller = ZoomController()
-        self.controller.set_speed(default_zoom_speed)
-        for side in ('left', 'right'):
-            self.controller.homing(side)
-            self.controller.set_zoom_level(side, default_zoom_level)
-
+        self.default_zoom_level = default_zoom_level
         self.current_zoom_info = {
             'left_eye': {
-                'zoom': self.controller.zoom_pos["left"][default_zoom_level]['zoom'],
-                'focus': self.controller.zoom_pos["left"][default_zoom_level]['focus'],
-                'speed': default_zoom_speed,
-                'zoom_level': default_zoom_level,
+                'zoom': -1,
+                'focus': -1,
+                'speed': -1,
+                'zoom_level': self.default_zoom_level,
             },
             'right_eye': {
-                'zoom': self.controller.zoom_pos["left"][default_zoom_level]['zoom'],
-                'focus': self.controller.zoom_pos["left"][default_zoom_level]['focus'],
-                'speed': default_zoom_speed,
-                'zoom_level': default_zoom_level,
+                'zoom': -1,
+                'focus': -1,
+                'speed': -1,
+                'zoom_level': self.default_zoom_level,
             },
         }
 
@@ -113,20 +106,6 @@ class ZoomControllerService(Node):
             response.success = False
             return response
 
-        if request.zoom_level == 'homing':
-            self.controller.homing(eye_side)
-            self.current_zoom_info[request.name]['zoom_level'] = 'zero'
-
-        elif request.zoom_level in ('in', 'out', 'inter'):
-            self.controller.set_zoom_level(eye_side, request.zoom_level)
-            self.current_zoom_info[request.name]['zoom_level'] = request.zoom_level
-            self.current_zoom_info[request.name]['zoom'] = int(self.controller.zoom_pos[eye_side][request.zoom_level]['zoom'])
-
-        else:
-            self.logger.warning("Invalid command sent to zoom controller (must be in ('homing', 'in', 'out' or 'inter')).")
-            response.success = False
-            return response
-
         response.success = True
         return response
 
@@ -152,9 +131,6 @@ class ZoomControllerService(Node):
             response.success = False
             return response
 
-        self.controller.set_speed(request.speed)
-        self.current_zoom_info[request.name] = request.speed
-
         response.success = True
         return response
 
@@ -174,26 +150,9 @@ class ZoomControllerService(Node):
                                        response: SetCameraZoomFocus.Response,
                                        ) -> SetCameraZoomFocus.Response:
         """Handle set_camera_zoom_focus callback."""
-        command = {'left': {}, 'right': {}}
-
-        for cmd_name in list(request.get_fields_and_field_types().keys()):
-            cmd = getattr(request, cmd_name)
-            if cmd.flag:
-                side, cmd_type = cmd_name.split('_')
-                command[side][cmd_type] = cmd.value
-                self.current_zoom_info[side+'_eye'][cmd_type] = cmd.value
-
-        self.controller._send_custom_command(command)
         response.success = True
         return response
 
-    def start_autofocus(self):
-        """Call set_focus_state service."""
-        req = SetFocusState.Request()
-        req.eye = ['left_eye', 'right_eye']
-        req.state = [True, True]
-        self.set_focus_state.call_async(req)
-        time.sleep(1.0)
 
 
 def main(args=None):
@@ -201,7 +160,6 @@ def main(args=None):
     rclpy.init(args=args)
 
     zoom_controller_service = ZoomControllerService()
-    zoom_controller_service.start_autofocus()
     rclpy.spin(zoom_controller_service)
 
     rclpy.shutdown()
