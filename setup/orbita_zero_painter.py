@@ -17,7 +17,7 @@ def main():
         return
 
     r.start()
-    r.set_orbita_values('zero', 'neck', {})
+    r.set_orbita_values('zero', 'painteffector', {})
     logger.info('New zeros of Orbita are set!')
     r.stop()
 
