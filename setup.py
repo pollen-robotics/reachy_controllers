@@ -18,8 +18,8 @@ setup(
     ],
     install_requires=[
         'setuptools',
-        'zoom_kurokesu>=1.1',
-        'reachy_pyluos_hal',
+        # 'zoom_kurokesu>=1.1',
+        # 'reachy_pyluos_hal',
     ],
     zip_safe=True,
     maintainer='Pollen-Robotics',
@@ -32,7 +32,8 @@ setup(
             'joint_state_controller = reachy_controllers.joint_state_controller:main',
             'camera_publisher = reachy_controllers.camera_publisher:main',
             'camera_zoom_service = reachy_controllers.camera_zoom_service:main',
-            'gripper_controller = reachy_controllers.gripper_controller:main'
+            'gripper_controller = reachy_controllers.gripper_controller:main',
+            'mockup_controller = reachy_controllers.mockup_controller:main',
         ],
     },
 )
