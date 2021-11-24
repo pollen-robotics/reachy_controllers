@@ -83,13 +83,13 @@ class MockupController(Node):
                              ) -> GetJointFullState.Response:
         """Handle GetJointsFullState service request."""
         response.name = self.joint_names
-        response.present_position = 0.0
-        response.present_speed = 0.0
-        response.present_load = 0.0
+        response.present_position = [0.0 for _ in self.joint_names]
+        response.present_speed = [0.0 for _ in self.joint_names]
+        response.present_load = [0.0 for _ in self.joint_names]
 
         response.temperature = [37.5 for _ in self.joint_names]
         response.compliant = [False for _ in self.joint_names]
-        response.goal_position = 0.0
+        response.goal_position = [0.0 for _ in self.joint_names]
         response.speed_limit = [0.0 for _ in self.joint_names]
         response.torque_limit = [100.0 for _ in self.joint_names]
         response.pid_gain = [PidGains(p=1.0, i=0.0, d=0.0) for _ in self.joint_names]
