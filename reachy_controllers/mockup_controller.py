@@ -1,4 +1,19 @@
-import time
+"""Mockup Reachy controller.
+
+This node is used to mimic the behavior of the joint_state_controller and then allow the use of a simulated Reachy.
+
+It implements the service:
+- /get_joint_full_state (the joints returned as the one define in the joints parameter of the forward_position_controller)
+
+It creates empty services for
+- /set_joint_compliancy
+- /set_joint_pid
+- /set_fan_state
+
+As Reachy's HAL rely on /joint_goals, a redirection from /joint_goals to /forward_position_controller/commands is also provided.
+
+"""
+
 from typing import List, Optional
 
 import rclpy
@@ -14,7 +29,10 @@ from reachy_msgs.srv import SetFanState, SetJointCompliancy, SetJointPidGains
 
 
 class MockupController(Node):
-    def __init__(self, state_pub_rate=100):
+    """Mockup Controller Node."""
+
+    def __init__(self):
+        """Create and setup the node."""
         super().__init__('mockup_controller')
 
         self.logger = self.get_logger()
@@ -25,7 +43,7 @@ class MockupController(Node):
         cli = self.create_client(GetParameters, '/forward_position_controller/get_parameters')
         while not cli.wait_for_service(timeout_sec=1.0):
             self.logger.warning(f'Waiting for {cli.srv_name} to get the joint names...')
-        
+
         req = GetParameters.Request()
         req.names = ['joints']
         fut = cli.call_async(req)
@@ -82,9 +100,11 @@ class MockupController(Node):
 
     @property
     def joint_names(self):
+        """Return the list of joints."""
         return self._joint_names
 
     def on_joint_goals(self, msg: JointState) -> None:
+        """Handle /joint_goals update."""
         for name, pos in zip(msg.name, msg.position):
             self.forward_command.data[self.id4joint[name]] = pos
         self.forward_command_pub.publish(self.forward_command)
@@ -134,6 +154,7 @@ class MockupController(Node):
 
 
 def main() -> None:
+    """Run everything."""
     rclpy.init()
 
     mockup_controller = MockupController()
