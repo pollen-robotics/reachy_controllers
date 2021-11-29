@@ -1,6 +1,10 @@
+import time
+from typing import List, Optional
+
 import rclpy
 from rclpy.node import Node
 
+from rcl_interfaces.srv import GetParameters
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
 
@@ -15,6 +19,22 @@ class MockupController(Node):
 
         self.logger = self.get_logger()
         self.clock = self.get_clock()
+
+        self._joint_names: Optional[List[str]] = None
+
+        cli = self.create_client(GetParameters, '/forward_position_controller/get_parameters')
+        while not cli.wait_for_service(timeout_sec=1.0):
+            self.logger.warning(f'Waiting for {cli.srv_name} to get the joint names...')
+        
+        req = GetParameters.Request()
+        req.names = ['joints']
+        fut = cli.call_async(req)
+
+        while not fut.done():
+            rclpy.spin_once(self, timeout_sec=1)
+
+        self._joint_names = fut.result().values[0].string_array_value
+        self.logger.info(f'Got command joints {self._joint_names}')
 
         self.forward_command = Float64MultiArray()
         self.forward_command.data = [0.0 for _ in self.joint_names]
@@ -62,15 +82,7 @@ class MockupController(Node):
 
     @property
     def joint_names(self):
-        return (
-            'l_shoulder_pitch', 'l_shoulder_roll', 'l_arm_yaw', 'l_elbow_pitch', 
-            'l_forearm_yaw', 'l_wrist_pitch', 'l_wrist_roll',
-            'r_shoulder_pitch', 'r_shoulder_roll', 'r_arm_yaw', 'r_elbow_pitch', 
-            'r_forearm_yaw', 'r_wrist_pitch', 'r_wrist_roll',
-            'orbita_roll', 'orbita_pitch', 'orbita_yaw',
-            'l_antenna', 'r_antenna',
-            'r_gripper', 'l_gripper',
-        )
+        return self._joint_names
 
     def on_joint_goals(self, msg: JointState) -> None:
         for name, pos in zip(msg.name, msg.position):
