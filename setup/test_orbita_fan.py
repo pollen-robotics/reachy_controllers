@@ -17,10 +17,10 @@ def main():
         return
 
     r.start()
-    r.set_orbita_values('fan_trigger_temperature_threshold', 'neck', {'disk_top': 15})
+    r.set_orbita_values('fan_trigger_temperature_threshold', 'neck', {'roll': 15})
     logger.info("Changing Orbita's fan trigger temperature for 5 seconds, check if you hear the fan.")
     time.sleep(5.0)
-    r.set_orbita_values('fan_trigger_temperature_threshold', 'neck', {'disk_top': 35})
+    r.set_orbita_values('fan_trigger_temperature_threshold', 'neck', {'roll': 35})
     r.stop()
 
 
