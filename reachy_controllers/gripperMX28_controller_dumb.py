@@ -23,6 +23,7 @@ from collections import deque
 from threading import Thread
 
 import numpy as np
+import math
 
 import rclpy
 from rclpy.node import Node
@@ -36,7 +37,7 @@ from reachy_msgs.srv import SetJointCompliancy, SetJointPidGains
 # Constants are defined for the right gripper
 WIN_FILTER_LENGTH = 5
 
-MAX_SERVO_SPEED = 330.0
+MAX_SERVO_SPEED = 330.0 * np.pi / 180
 MAX_ACCEPTABLE_SERVO_SPEED = 2000 * np.pi / 180
 
 OPEN_POS = -0.87
@@ -45,14 +46,16 @@ CLOSE_POS = 0.35
 MAX_TORQUE = 0.5
 
 MAX_ERROR = 20.0 * np.pi / 180
-MAX_STATIC_ERROR = 3 * np.pi / 180
-SKIP_EARLY_DTS = 4
+SKIP_EARLY_DTS = 5
 UPDATE_FREQ = 100  # Hz
 
 MIN_DISTANCE_MOVEMENT = 0.1
 
 P = 3.0
 P_DIRECT_CONTROL = 5.0
+
+servo_open_pos = -50.0 * np.pi / 180
+servo_close_pos = -124.09 * np.pi / 180
 
 
 def angle_diff(a, b):
@@ -79,17 +82,8 @@ class GripperMX28State:
         self.requested_goal_position = OPEN_POS if name == 'r_gripper' else -OPEN_POS
         self.goal_position = self.requested_goal_position
         self._error = deque([0.0], maxlen=WIN_FILTER_LENGTH)
-        
-        self.current_case = 0
-        self._previous_case = 0
-        self._early_dts_count = 0
 
         self._increment_per_dt = 0.0
-        self._previous_requested_goal_position = self.requested_goal_position
-        self._previous_goal_position = self.goal_position
-        self._previous_present_position = self.present_position
-
-        self._present_position_evolution = 0.0
 
         self.previously_in_collision = False
         self.in_collision = False
@@ -143,33 +137,6 @@ class GripperMX28State:
         else:
             if self.requested_goal_position > self.goal_position:
                 self.in_collision = False
-    
-    @property
-    def previous_case(self):
-        """Filter the position error (used to detect forcing)."""
-        return self._previous_case
-    
-    @previous_case.setter
-    def previous_case(self, value):
-        self._previous_case = value
-
-    @property
-    def early_dts_count(self):
-        """Filter the position error (used to detect forcing)."""
-        return self._early_dts_count
-
-    @early_dts_count.setter
-    def early_dts_count(self, value):
-        self._early_dts_count = value
-
-    @property
-    def present_position_evolution(self):
-        """Filter the position error (used to detect forcing)."""
-        return self._present_position_evolution
-
-    @present_position_evolution.setter
-    def present_position_evolution(self, value):
-        self._present_position_evolution = value
 
 
 class GripperMX28Controller(Node):
@@ -231,31 +198,30 @@ class GripperMX28Controller(Node):
             'r_gripper': GripperMX28State(name='r_gripper'),
         }
 
-        self.check = 0
+        # def gripper_state_update_thread():
+        #     for gripper in self.grippers.values():
+        #         self.turn_off(gripper)
+        #         self.set_pid(gripper, p=P_DIRECT_CONTROL, i=0.0, d=0.0)
 
-        def gripper_state_update_thread():
-            for gripper in self.grippers.values():
-                self.turn_off(gripper)
-                self.set_pid(gripper, p=P_DIRECT_CONTROL, i=0.0, d=0.0)
+        #     while rclpy.ok():
+        #         self.gripper_state_update()
+        #         time.sleep(1 / UPDATE_FREQ)
 
-            while rclpy.ok():
-                self.gripper_state_update()
-                time.sleep(1 / UPDATE_FREQ)
-
-        self.gripper_state_thread = Thread(target=gripper_state_update_thread)
-        self.gripper_state_thread.daemon = True
-        self.gripper_state_thread.start()
+        # self.gripper_state_thread = Thread(target=gripper_state_update_thread)
+        # self.gripper_state_thread.daemon = True
+        # self.gripper_state_thread.start()
 
         self.logger.info('Node ready!')
 
     def grippers_callback(self, msg: GripperMX28):
         """Get latest Gripper msg from /grippersMX28."""
+        print('callback GRASP')
         for name, goal_position in zip(msg.name, msg.goal_position):
             if name not in self.grippers:
                 continue
             gripper = self.grippers[name]
-            gripper.previous_requested_goal_position = gripper.requested_goal_position
             gripper.requested_goal_position = goal_position
+        self.gripper_state_update()
 
     def joint_states_callback(self, msg: JointState):
         """Get latest JointState from /joint_states."""
@@ -263,19 +229,12 @@ class GripperMX28Controller(Node):
             if name not in self.grippers:
                 continue
 
-            ignore_evolution = False
-
             gripper = self.grippers[name]
             gripper._previous_present_position = gripper.present_position
-            if(position < 1.0):
-                gripper.present_position = position
-            else:
-                ignore_evolution = True
-                print('AOUTCH un pi/2')
+            # if(position < 1.0):
+            print('joint_states')
+            gripper.present_position = position
             gripper.error = np.abs(gripper.goal_position - gripper.present_position)
-            
-            if(not ignore_evolution):
-                gripper.present_position_evolution = gripper.present_position-gripper._previous_present_position
     
     def joint_temperatures_callback(self, msg: JointTemperature):
         """Get latest JointState from /joint_temperatures."""
@@ -288,37 +247,18 @@ class GripperMX28Controller(Node):
 
     def gripper_state_update(self):
         """Update grippers state machine."""
+        print('gripper_state_update')
         for gripper in self.grippers.values():
 
-            gripper.previous_goal_position = gripper.goal_position
+            safe_pos = servo_open_pos
 
-            if(gripper.previously_in_collision and not gripper.in_collision):
-                self.set_pid(gripper, p=P_DIRECT_CONTROL, i=0.0, d=0.0)
-                gripper.previously_in_collision = False
-            
-            elif(gripper.in_collision and not gripper.previously_in_collision):
-                self.set_pid(gripper, p=P, i=0.0, d=0.0)
-                gripper.previously_in_collision = True
+            print('tudu')
 
-            if gripper.in_collision:
-                self.close_fake_error(gripper)
-                gripper.need_release()
-
-            else:
-                self.close_smart(gripper, gripper.requested_goal_position)
-                self.check_error(gripper)
-            
-            print("max_error ", MAX_ERROR)
-            # print("gripper.error ", gripper.error)
-            # print("gripper.filtred_error ", gripper.filtred_error)
-            print("gripper.requested_goal_position ", gripper.requested_goal_position)
-            print("gripper.increment_per_dt ", gripper.increment_per_dt)
-            print("gripper.goal_position ", gripper.goal_position)
-            print("gripper.present_position ", gripper.present_position)
-            print("gripper evolution since last present position", gripper.present_position-gripper._previous_present_position)
-            print("gripper.present_position_evolution", gripper.present_position_evolution)
-            print("gripper.error ", gripper.error)
-            print("------------------------ ")
+            result = self.close_smart(gripper, gripper.requested_goal_position, max_torque=0.5, speed=150 * np.pi/180, max_error=1.0)
+            if result == 1:
+                # print("Waiting for re-open...")
+                time.sleep(5.0)
+                gripper.goal_position = safe_pos
 
         self.publish_goals()
 
@@ -349,16 +289,16 @@ class GripperMX28Controller(Node):
     def set_pid(self, gripper, p, i, d):
         """Set gripper PID to new value (use margin/slope for AX-18)."""
         gains = PidGains()
-        gains.p = p
-        gains.i = i
-        gains.d = d
+        gains.p = float(p)
+        gains.i = float(i)
+        gains.d = float(d)
 
         pid = SetJointPidGains.Request()
         pid.name.append(gripper.name)
         pid.pid_gain.append(gains)
 
         resp = self.pid_gains_client.call(pid)
-        self.logger.info(f'PID gains {(p, i, d)} set for "{gripper.name}" with resp "{resp.success}".')
+        # self.logger.info(f'PID gains {(p, i, d)} set for "{gripper.name}" with resp "{resp.success}".')
 
     def torque_mode(self, gripper, on):
         """Set gripper torque to new value."""
@@ -369,79 +309,72 @@ class GripperMX28Controller(Node):
         resp = self.compliancy_client.call(req)
         self.logger.info(f'Compliance mode "{not on}" set for "{gripper.name}" with resp "{resp.success}".')
 
-    def close_fake_error(self, gripper, max_torque=MAX_TORQUE, dt=1/UPDATE_FREQ, p=P):
-        print("close_fake_error")
-        current_pos = gripper.present_position
-        # Calculating a goal pos so that if the error remains constant, then the output torque is max_torque.
-        model_goal_pos = -(np.pi/180)*(14*max_torque + 0.178)/p
-        goal_pos = model_goal_pos + current_pos
-        gripper.goal_position = goal_pos
+    def close_fake_error(self, gripper, max_torque=0.5, dt=0.01, p=3.0, close_time=3):
+        print('close_fake_error')
+        # print("Setting p value at {}".format(p))
+        # self.set_pid(gripper, p=p, i=0.0, d=0.0)
+        t = 0
+        print('pid set')
+        while True:
+            if t > close_time:
+                break
+            t += dt
+            current_pos = gripper.present_position
+            # Calculating a goal pos so that if the error remains constant, then the output torque is max_torque.
+            goal_pos = -(14*max_torque + 0.178)/p + current_pos
+            error = angle_diff(goal_pos, current_pos)
+            # print("**Goal pos = {}. Error = {}. Current pos = {}".format(goal_pos, error, current_pos))
+            gripper.goal_position = goal_pos
+            self.publish_goals()
+            time.sleep(dt)
+        print('finish')
+        return 0
 
-    def close_smart(self, gripper, goal_pos, speed=MAX_ACCEPTABLE_SERVO_SPEED, dt=1/UPDATE_FREQ):
-        """Evaluate request from teleop. Set possible goal_position depending on the requested target."""
+    def close_smart(self, gripper, goal_pos, max_torque=0.5, speed=MAX_ACCEPTABLE_SERVO_SPEED, dt=0.01, max_error=3.0, skip_early_dts = 5):
+        print('beginning of close_smart')
+        p = 4.0
+        normal_error_delay = 2.9
+        normal_error_delay = speed*normal_error_delay/150
+        # print("Setting p value at {}".format(p))
+        #self.set_pid(gripper, p=p, i=0.0, d=0.0)
+        initial_pos = gripper.present_position
+        ang_dist = angle_diff(goal_pos, initial_pos)
+        total_close_time = abs(ang_dist/speed)
+        increment_per_dt = ang_dist/(total_close_time/dt)
+        current_goal_pos = initial_pos
+        collision = False
 
-        gripper.previous_case = gripper.current_case
+        print('increment_per_dt', increment_per_dt)
+        # print("total_close_time {}".format(total_close_time))
+        # print("ang_dist {}".format(ang_dist))
+        print('close_smart')
 
-        if(abs(goal_pos - gripper.previous_requested_goal_position) < MIN_DISTANCE_MOVEMENT):
-            goal_pos = gripper.previous_requested_goal_position
-
-        if(gripper.increment_per_dt < 0.0 and goal_pos <= gripper.previous_requested_goal_position):
-            print('case 1')
-            # initial_pos = gripper.goal_position
-            gripper.current_case = 1
-            initial_pos = gripper.present_position
-            current_goal_pos = initial_pos
-            current_goal_pos += gripper.increment_per_dt
-            if(current_goal_pos < goal_pos):
-                current_goal_pos = goal_pos
-            gripper.goal_position = current_goal_pos
-
-        elif(gripper.increment_per_dt > 0.0 and goal_pos >= gripper.previous_requested_goal_position):
-            print('case 2')
-            # initial_pos = gripper.goal_position
-            gripper.current_case = 2
-            initial_pos = gripper.present_position
-            current_goal_pos = initial_pos
-            current_goal_pos += gripper.increment_per_dt
-            if(current_goal_pos > goal_pos):
-                current_goal_pos = goal_pos
-            gripper.goal_position = current_goal_pos
-
-        else:
-            print('case 3')
-            gripper.current_case = 3
-            initial_pos = gripper.present_position
-            ang_dist = angle_diff(goal_pos, initial_pos)
-            total_close_time = abs(ang_dist/speed)
-            # increment_per_dt = sign(ang_dist) * min(abs(ang_dist), abs(ang_dist/(total_close_time/dt)))
-            increment_per_dt = ang_dist/(total_close_time/dt)
-            gripper.increment_per_dt = increment_per_dt
-            current_goal_pos = initial_pos
+        for i in range(math.floor(total_close_time/dt)):
             current_goal_pos += increment_per_dt
             gripper.goal_position = current_goal_pos
-        
-        if(gripper.current_case == gripper.previous_case):
-            gripper.early_dts_count += 1
-        else:
-            gripper.early_dts_count = 0
+            current_pos = gripper.present_position
+            error = angle_diff(current_goal_pos, current_pos)
+            smart_error = angle_diff(current_goal_pos, current_pos-normal_error_delay) 
+            # print("Goal pos = {}. Error = {}. Corrected error = {}. Current pos = {}".format(current_goal_pos, error, smart_error, current_pos))
+            if i >= skip_early_dts:
+                print('current_goal_pos', current_goal_pos)
+                print('current_pos', current_pos)
+                print('smart_error', smart_error)
+                if abs(smart_error) > max_error:
+                    print("Collision detected, activating model based torque control")
+                    collision = True
+                    self.close_fake_error(gripper, max_torque=max_torque, dt=0.01, p=3, close_time=5)
+                    break
+            self.publish_goals()
+            time.sleep(dt)
 
-    def check_error(self, gripper, max_error=MAX_ERROR, skip_early_dts=SKIP_EARLY_DTS):
-        """Check if a collision occurred while trying to reach the goal position."""
-        if(gripper.name == 'r_gripper'):
-            if (gripper.filtred_error > max_error and gripper.requested_goal_position > gripper.present_position and gripper.early_dts_count > skip_early_dts):
-                print("Collision detected!")
-                gripper.in_collision = True
-            if(gripper.requested_goal_position > 0.34 and gripper.filtred_error > MAX_STATIC_ERROR and gripper.present_position_evolution < 0.001 and gripper.early_dts_count > skip_early_dts):
-                self.check += 1
-                if(self.check > 3):
-                    print("Static collision detected!")
-                    gripper.in_collision = True
-            else:
-                self.check = 0
-            print(gripper.requested_goal_position > 0.34)
-            print(gripper.filtred_error > MAX_STATIC_ERROR)
-            print(gripper.present_position_evolution < 0.001)
-            print(gripper.early_dts_count > skip_early_dts)
+        if not(collision):
+            print('gonna return 0')
+            gripper.goal_position = current_goal_pos
+            return 0
+        else:
+            print('gonna return 1')
+            return 1
 
 
 def main(args=None):
