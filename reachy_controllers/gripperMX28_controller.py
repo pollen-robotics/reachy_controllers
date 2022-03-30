@@ -263,20 +263,13 @@ class GripperMX28Controller(Node):
             if name not in self.grippers:
                 continue
 
-            ignore_evolution = False
-
             gripper = self.grippers[name]
             gripper._previous_present_position = gripper.present_position
-            if(position < 1.0):
-                gripper.present_position = position
-            else:
-                ignore_evolution = True
-                print('AOUTCH un pi/2')
+            gripper.present_position = position
             gripper.error = np.abs(gripper.goal_position - gripper.present_position)
-            
-            if(not ignore_evolution):
-                gripper.present_position_evolution = gripper.present_position-gripper._previous_present_position
-    
+
+            gripper.present_position_evolution = gripper.present_position-gripper._previous_present_position
+
     def joint_temperatures_callback(self, msg: JointTemperature):
         """Get latest JointState from /joint_temperatures."""
         for name, temperature in zip(msg.name, msg.temperature):
