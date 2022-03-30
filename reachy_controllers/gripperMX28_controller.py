@@ -373,7 +373,7 @@ class GripperMX28Controller(Node):
         print("close_fake_error")
         current_pos = gripper.present_position
         # Calculating a goal pos so that if the error remains constant, then the output torque is max_torque.
-        model_goal_pos = -(np.pi/180)*(14*max_torque + 0.178)/p
+        model_goal_pos = (np.pi/180)*(14*max_torque + 0.178)/p
         goal_pos = model_goal_pos + current_pos
         gripper.goal_position = goal_pos
 
