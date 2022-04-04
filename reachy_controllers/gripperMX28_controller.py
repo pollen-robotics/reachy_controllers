@@ -1,20 +1,17 @@
 """
-Gripper High-level Controller Node.
+Gripper MX28 High-level Controller Node.
 
-Listen to opening/force messages for each gripper and automatically adjusts the gripper state in function.
+Listen to opening request and choose closing mode depending on the state: if a collision is detected or not.
 
-This controller tries to automatically avoid gripper overheating by detecting forcing.
+This controller tries to automatically avoid gripper overheating by controlling torque.
 This typically happens when holding an object, and adjusting the hold position.
-It also tunes the compliances and PIDs depending on the state.
+It tunes the requested goal position and the PID depending on the chosen control mode.
 
 Grippers can be in one of those states:
 
-- resting: the compliance is turned on and the motor is resting while waiting for new commands
-- moving: you have direct control of the gripper between its open and close position (using the opening scalar from 0 to 1)
-- holding: a forcing has been detected (basically the gripper can not reach the desired goal position).
-    A new hold position is computed from the current forcing position and the requested hold position.
-    The PIDs are also adjusted to diminish overheating.
-    This position will be held until the opening value is back to a release value.
+- holding an object: the goal position is calculated depending on the present position based on a theorical model
+- empty: the operator is directly controlling the goal position, but the real goal position sent to the gripper is recalculated 
+each dt based on the evolution of the requests
 
 """
 
@@ -315,12 +312,6 @@ class GripperMX28Controller(Node):
 
         self.publish_goals()
 
-    def turn_on(self, gripper):
-        """Turn on the gripper."""
-        self.logger.info(f'Turn on gripper "{gripper.name}"')
-        self.set_pid(gripper, 1.0, 32.0)
-        self.torque_mode(gripper, on=True)
-
     def turn_off(self, gripper):
         """Turn off gripper."""
         self.logger.info(f'Turn off gripper "{gripper.name}"')
@@ -366,7 +357,10 @@ class GripperMX28Controller(Node):
         print("close_fake_error")
         current_pos = gripper.present_position
         # Calculating a goal pos so that if the error remains constant, then the output torque is max_torque.
-        model_goal_pos = (np.pi/180)*(14*max_torque + 0.178)/p
+        if(gripper.name == 'r_gripper'):
+            model_goal_pos = (np.pi/180)*(14*max_torque + 0.178)/p
+        else:
+            model_goal_pos = (np.pi/180)*(14*max_torque + 0.178)/p
         goal_pos = model_goal_pos + current_pos
         gripper.goal_position = goal_pos
 
@@ -435,6 +429,17 @@ class GripperMX28Controller(Node):
             print(gripper.filtred_error > MAX_STATIC_ERROR)
             print(gripper.present_position_evolution < 0.001)
             print(gripper.early_dts_count > skip_early_dts)
+        else:
+            if (gripper.filtred_error > max_error and gripper.requested_goal_position < gripper.present_position and gripper.early_dts_count > skip_early_dts):
+                print("Collision detected!")
+                gripper.in_collision = True
+            if(gripper.requested_goal_position < -0.34 and gripper.filtred_error > MAX_STATIC_ERROR and gripper.present_position_evolution < 0.001 and gripper.early_dts_count > skip_early_dts):
+                self.check += 1
+                if(self.check > 3):
+                    print("Static collision detected!")
+                    gripper.in_collision = True
+            else:
+                self.check = 0
 
 
 def main(args=None):
