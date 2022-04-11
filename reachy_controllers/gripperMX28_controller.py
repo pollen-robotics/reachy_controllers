@@ -76,7 +76,7 @@ class GripperMX28State:
         self.requested_goal_position = OPEN_POS if name == 'r_gripper' else -OPEN_POS
         self.goal_position = self.requested_goal_position
         self._error = deque([0.0], maxlen=WIN_FILTER_LENGTH)
-        
+
         self.current_case = 0
         self._previous_case = 0
         self._early_dts_count = 0
@@ -126,7 +126,7 @@ class GripperMX28State:
     @increment_per_dt.setter
     def increment_per_dt(self, value):
         self._increment_per_dt = value
-    
+
     @property
     def filtred_error(self):
         """Filter the position error (used to detect forcing)."""
@@ -140,12 +140,12 @@ class GripperMX28State:
         else:
             if self.requested_goal_position > self.goal_position:
                 self.in_collision = False
-    
+
     @property
     def previous_case(self):
         """Filter the position error (used to detect forcing)."""
         return self._previous_case
-    
+
     @previous_case.setter
     def previous_case(self, value):
         self._previous_case = value
@@ -285,7 +285,7 @@ class GripperMX28Controller(Node):
             if(gripper.previously_in_collision and not gripper.in_collision):
                 self.set_pid(gripper, p=P_DIRECT_CONTROL, i=0.0, d=0.0)
                 gripper.previously_in_collision = False
-            
+
             elif(gripper.in_collision and not gripper.previously_in_collision):
                 self.set_pid(gripper, p=P, i=0.0, d=0.0)
                 gripper.previously_in_collision = True
@@ -297,18 +297,18 @@ class GripperMX28Controller(Node):
             else:
                 self.close_smart(gripper, gripper.requested_goal_position)
                 self.check_error(gripper)
-            
-            print("max_error ", MAX_ERROR)
+
+            # print("max_error ", MAX_ERROR)
+            # # print("gripper.error ", gripper.error)
+            # # print("gripper.filtred_error ", gripper.filtred_error)
+            # print("gripper.requested_goal_position ", gripper.requested_goal_position)
+            # print("gripper.increment_per_dt ", gripper.increment_per_dt)
+            # print("gripper.goal_position ", gripper.goal_position)
+            # print("gripper.present_position ", gripper.present_position)
+            # print("gripper evolution since last present position", gripper.present_position-gripper._previous_present_position)
+            # print("gripper.present_position_evolution", gripper.present_position_evolution)
             # print("gripper.error ", gripper.error)
-            # print("gripper.filtred_error ", gripper.filtred_error)
-            print("gripper.requested_goal_position ", gripper.requested_goal_position)
-            print("gripper.increment_per_dt ", gripper.increment_per_dt)
-            print("gripper.goal_position ", gripper.goal_position)
-            print("gripper.present_position ", gripper.present_position)
-            print("gripper evolution since last present position", gripper.present_position-gripper._previous_present_position)
-            print("gripper.present_position_evolution", gripper.present_position_evolution)
-            print("gripper.error ", gripper.error)
-            print("------------------------ ")
+            # print("------------------------ ")
 
         self.publish_goals()
 
@@ -354,7 +354,7 @@ class GripperMX28Controller(Node):
         self.logger.info(f'Compliance mode "{not on}" set for "{gripper.name}" with resp "{resp.success}".')
 
     def close_fake_error(self, gripper, max_torque=MAX_TORQUE, dt=1/UPDATE_FREQ, p=P):
-        print("close_fake_error")
+        # print("close_fake_error")
         current_pos = gripper.present_position
         # Calculating a goal pos so that if the error remains constant, then the output torque is max_torque.
         if(gripper.name == 'r_gripper'):
@@ -373,7 +373,7 @@ class GripperMX28Controller(Node):
             goal_pos = gripper.previous_requested_goal_position
 
         if(gripper.increment_per_dt < 0.0 and goal_pos <= gripper.previous_requested_goal_position):
-            print('case 1')
+            # print('case 1')
             # initial_pos = gripper.goal_position
             gripper.current_case = 1
             initial_pos = gripper.present_position
@@ -384,7 +384,7 @@ class GripperMX28Controller(Node):
             gripper.goal_position = current_goal_pos
 
         elif(gripper.increment_per_dt > 0.0 and goal_pos >= gripper.previous_requested_goal_position):
-            print('case 2')
+            # print('case 2')
             # initial_pos = gripper.goal_position
             gripper.current_case = 2
             initial_pos = gripper.present_position
@@ -395,7 +395,7 @@ class GripperMX28Controller(Node):
             gripper.goal_position = current_goal_pos
 
         else:
-            print('case 3')
+            # print('case 3')
             gripper.current_case = 3
             initial_pos = gripper.present_position
             ang_dist = angle_diff(goal_pos, initial_pos)
@@ -406,7 +406,7 @@ class GripperMX28Controller(Node):
             current_goal_pos = initial_pos
             current_goal_pos += increment_per_dt
             gripper.goal_position = current_goal_pos
-        
+
         if(gripper.current_case == gripper.previous_case):
             gripper.early_dts_count += 1
         else:
@@ -425,10 +425,6 @@ class GripperMX28Controller(Node):
                     gripper.in_collision = True
             else:
                 self.check = 0
-            print(gripper.requested_goal_position > 0.34)
-            print(gripper.filtred_error > MAX_STATIC_ERROR)
-            print(gripper.present_position_evolution < 0.001)
-            print(gripper.early_dts_count > skip_early_dts)
         else:
             if (gripper.filtred_error > max_error and gripper.requested_goal_position < gripper.present_position and gripper.early_dts_count > skip_early_dts):
                 print("Collision detected!")
