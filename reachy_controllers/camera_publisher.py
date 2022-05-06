@@ -5,16 +5,16 @@ Camera Node.
 
 Supported resolutions are: (1920,1080) at 15FPS, (1280,720) at 30FPS, (640,480) at 30FPS.
 """
-import time
 from functools import partial
+from threading import Thread
+from typing import Dict
 
-import cv2 as cv
 import numpy as np
+
+from v4l2py import Device
 
 import rclpy
 from rclpy.node import Node
-
-from cv_bridge import CvBridge
 
 from sensor_msgs.msg._compressed_image import CompressedImage
 
@@ -26,53 +26,28 @@ class CameraPublisher(Node):
                  left_port: str = '/dev/video4',
                  right_port: str = '/dev/video0',
                  resolution: tuple = (640, 480),
-                 fps: float = 30.0) -> None:
+                 fps: int = 30) -> None:
         """Connect to both cameras, initialize the publishers."""
         super().__init__('camera_publisher')
         self.logger = self.get_logger()
-
-        time.sleep(15)
-
-        self.image_left = CompressedImage()
-        self.cap_left = cv.VideoCapture(left_port, apiPreference=cv.CAP_V4L2)
-
-        self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
-        self.cap_left.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-        self.cap_left.set(cv.CAP_PROP_FPS, fps)
-        self.cap_left.set(cv.CAP_PROP_FRAME_WIDTH, resolution[0])
-        self.cap_left.set(cv.CAP_PROP_FRAME_HEIGHT, resolution[1])
-
-        self.image_right = CompressedImage()
-        self.cap_right = cv.VideoCapture(right_port, apiPreference=cv.CAP_V4L2)
-
-        self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('m', 'j', 'p', 'g'))
-        self.cap_right.set(cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc('M', 'J', 'P', 'G'))
-        self.cap_right.set(cv.CAP_PROP_FPS, fps)
-        self.cap_right.set(cv.CAP_PROP_FRAME_WIDTH, resolution[0])
-        self.cap_right.set(cv.CAP_PROP_FRAME_HEIGHT, resolution[1])
-
-        self.cap = {
-            'left': self.cap_left,
-            'right': self.cap_right
-        }
-        self.rot = {
-            'left': 3,  # 3 * 90 = 270
-            'right': 1,  # 1 * 90 = 90
-        }
-
         self.clock = self.get_clock()
+
+        self.devices = {}
+
+        self.left_device = Device(left_port)
+        self.left_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixelformat='MJPG')
+        self.left_device.video_capture.set_fps(fps)
+        self.devices['left'] = self.left_device
+
+        self.right_device = Device(right_port)
+        self.right_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixelformat='MJPG')
+        self.right_device.video_capture.set_fps(fps)
+        self.devices['right'] = self.right_device
+
         self.camera_publisher_left = self.create_publisher(CompressedImage, 'left_image', 1)
-        self.publish_timer_l = self.create_timer(
-            timer_period_sec=1/fps,
-            callback=partial(self.publish_img, 'left')
-            )
         self.logger.info(f'Launching "{self.camera_publisher_left.topic_name}" publisher.')
 
         self.camera_publisher_right = self.create_publisher(CompressedImage, 'right_image', 1)
-        self.publish_timer_r = self.create_timer(
-             timer_period_sec=1/fps,
-             callback=partial(self.publish_img, 'right')
-             )
         self.logger.info(f'Launching "{self.camera_publisher_right.topic_name}" publisher.')
 
         self.publisher = {
@@ -80,19 +55,34 @@ class CameraPublisher(Node):
             'right': self.camera_publisher_right
         }
 
-        self.bridge = CvBridge()
+        self.compr_img: Dict[str, CompressedImage] = {}
+        self.publisher_loop: Dict[str, callable] = {}
+
+        def publisher(side):
+            self.logger.info(f'{side.capitalize()} camera ready to publish!')
+            for frame in self.devices[side]:
+                self.publish_img(side, frame)
+
+        for side in ('left', 'right'):
+            compr_img = CompressedImage()
+            compr_img.format = 'jpeg'
+            self.compr_img[side] = compr_img
+
+            self.publisher_loop[side] = partial(publisher, side=side)
+
+        for loop in self.publisher_loop.values():
+            t = Thread(target=loop)
+            t.daemon = True
+            t.start()
 
         self.logger.info('Node ready!')
 
-    def publish_img(self, side: str) -> None:
+    def publish_img(self, side: str, frame: bytes) -> None:
         """Read image from the requested side and publishes it."""
-        b, img = self.cap[side].read()
-        if not b:
-            self.logger.warning('Failed to grab frame!')
-            return
-        img = np.rot90(img, self.rot[side])
-        img_msg = self.bridge.cv2_to_compressed_imgmsg(img)
-        self.publisher[side].publish(img_msg)
+        compr_img = self.compr_img[side]
+        compr_img.header.stamp = self.clock.now().to_msg()
+        compr_img.data = frame
+        self.publisher[side].publish(compr_img)
 
 
 def main() -> None:

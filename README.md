@@ -9,7 +9,7 @@ ROS2 package handling Reachy:
 
 **ROS2 Version: Foxy**
 
-Dependencies: [reachy_msgs](https://github.com/pollen-robotics/reachy_msgs), [reachy_pyluos_hal](https://github.com/pollen-robotics/reachy_pyluos_hal), [zoom_kurokesu](https://github.com/pollen-robotics/zoom_kurokesu)
+Dependencies: [reachy_msgs](https://github.com/pollen-robotics/reachy_msgs), [reachy_pyluos_hal](https://github.com/pollen-robotics/reachy_pyluos_hal), [zoom_kurokesu](https://github.com/pollen-robotics/zoom_kurokesu), [v4l2py](https://github.com/tiagocoutinho/v4l2py/blob/master/setup.py).
 
 How to install:
 
