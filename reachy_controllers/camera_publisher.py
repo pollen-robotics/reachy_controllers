@@ -9,8 +9,6 @@ from functools import partial
 from threading import Thread
 from typing import Dict
 
-import numpy as np
-
 from v4l2py import Device
 
 import rclpy
