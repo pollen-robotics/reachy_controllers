@@ -224,7 +224,7 @@ class GripperMX28Controller(Node):
         self.logger.info(f'Subscribe to "{self.grippers_sub.topic_name}".')
 
         self.grippers = {
-            # 'l_gripper': GripperMX28State(name='l_gripper'),
+            'l_gripper': GripperMX28State(name='l_gripper'),
             'r_gripper': GripperMX28State(name='r_gripper'),
         }
 
@@ -301,7 +301,7 @@ class GripperMX28Controller(Node):
             # print("max_error ", MAX_ERROR)
             # # print("gripper.error ", gripper.error)
             # # print("gripper.filtred_error ", gripper.filtred_error)
-            # print("gripper.requested_goal_position ", gripper.requested_goal_position)
+            # # print("gripper.requested_goal_position ", gripper.requested_goal_position)
             # print("gripper.increment_per_dt ", gripper.increment_per_dt)
             # print("gripper.goal_position ", gripper.goal_position)
             # print("gripper.present_position ", gripper.present_position)
@@ -359,9 +359,10 @@ class GripperMX28Controller(Node):
         # Calculating a goal pos so that if the error remains constant, then the output torque is max_torque.
         if(gripper.name == 'r_gripper'):
             model_goal_pos = (np.pi/180)*(14*max_torque + 0.178)/p
+            goal_pos = model_goal_pos + current_pos
         else:
             model_goal_pos = (np.pi/180)*(14*max_torque + 0.178)/p
-        goal_pos = model_goal_pos + current_pos
+            goal_pos = - model_goal_pos + current_pos
         gripper.goal_position = goal_pos
 
     def close_smart(self, gripper, goal_pos, speed=MAX_ACCEPTABLE_SERVO_SPEED, dt=1/UPDATE_FREQ):
