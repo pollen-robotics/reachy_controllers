@@ -33,12 +33,12 @@ class CameraPublisher(Node):
         self.devices = {}
 
         self.left_device = Device(left_port)
-        self.left_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixelformat='MJPG')
+        self.left_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixel_format='MJPG')
         self.left_device.video_capture.set_fps(fps)
         self.devices['left'] = self.left_device
 
         self.right_device = Device(right_port)
-        self.right_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixelformat='MJPG')
+        self.right_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixel_format='MJPG')
         self.right_device.video_capture.set_fps(fps)
         self.devices['right'] = self.right_device
 
