@@ -20,7 +20,7 @@ setup(
         'setuptools',
         'zoom_kurokesu>=1.1',
         'reachy_pyluos_hal',
-        'v4l2py',
+        'v4l2py>=0.6.1',
     ],
     zip_safe=True,
     maintainer='Pollen-Robotics',
