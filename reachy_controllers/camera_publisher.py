@@ -8,6 +8,7 @@ Supported resolutions are: (1920,1080) at 15FPS, (1280,720) at 30FPS, (640,480) 
 from functools import partial
 from threading import Thread
 from typing import Dict
+from subprocess import Popen, PIPE
 
 from v4l2py import Device
 
@@ -58,8 +59,14 @@ class CameraPublisher(Node):
 
         def publisher(side):
             self.logger.info(f'{side.capitalize()} camera ready to publish!')
+
+            if side == 'right':
+                angle = '270'
+            else:
+                angle = '90'
+
             for frame in self.devices[side]:
-                self.publish_img(side, frame)
+                self.publish_img(side, self._rotate(frame, angle))
 
         for side in ('left', 'right'):
             compr_img = CompressedImage()
@@ -81,6 +88,14 @@ class CameraPublisher(Node):
         compr_img.header.stamp = self.clock.now().to_msg()
         compr_img.data = frame
         self.publisher[side].publish(compr_img)
+
+    def _rotate(self, frame, angle):
+        process = Popen([
+            'jpegtran', '-rotate', angle,
+        ], stdin=PIPE, stdout=PIPE, bufsize=-1)
+        out, err = process.communicate(frame)
+        process.wait()
+        return out
 
 
 def main() -> None:
