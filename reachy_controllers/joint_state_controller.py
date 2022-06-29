@@ -27,7 +27,7 @@ from reachy_msgs.msg import FanState
 from reachy_msgs.msg import JointTemperature
 from reachy_msgs.msg import PidGains
 from reachy_msgs.srv import GetJointFullState, SetJointCompliancy, SetJointPidGains
-from reachy_msgs.srv import SetFanState
+from reachy_msgs.srv import SetFanState, GetReachyModel
 
 
 def get_reachy_model() -> str:
@@ -37,6 +37,15 @@ def get_reachy_model() -> str:
     https://github.com/pollen-robotics/reachy_pyluos_hal/blob/main/reachy_pyluos_hal/tools/reachy_identify_model.py
     """
     model = check_output(['reachy-identify-model']).strip().decode()
+    return model
+
+
+def get_zuuu_model() -> str:
+    """Find the configuration file for your mobile base.
+    Refer to following link for details on how the identification is done:
+    https://github.com/pollen-robotics/reachy_pyluos_hal/blob/main/reachy_pyluos_hal/tools/reachy_identify_model.py
+    """
+    model = check_output(['reachy-identify-zuuu-model']).strip().decode()
     return model
 
 
@@ -169,6 +178,13 @@ class JointStateController(Node):
         )
         self.logger.info(f'Create "{self.fan_srv.srv_name}" service.')
 
+        self.get_reachy_model_service = self.create_service(
+            srv_type=GetReachyModel,
+            srv_name='get_reachy_model',
+            callback=self.handle_get_reachy_model,
+        )
+        self.logger.info(f'Create "{self.get_reachy_model_service.srv_name}" service.')
+
         self.logger.info('Node ready!')
 
     def shutdown(self) -> None:
@@ -293,6 +309,16 @@ class JointStateController(Node):
 
         return response
 
+    def handle_get_reachy_model(self,
+                                request: GetReachyModel.Request,
+                                response: GetReachyModel.Response,
+                                ) -> GetReachyModel.Response:
+        """Handle GetReachyModel service request."""
+        self.logger.info('Yo')
+        response.reachy_model = get_reachy_model()
+        response.zuuu_model = get_zuuu_model()
+        self.logger.info('Kook')
+        return response
 
 def _val_to_pid_gain(values: List[float]) -> PidGains:
     gains = PidGains()

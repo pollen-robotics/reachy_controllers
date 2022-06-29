@@ -20,7 +20,7 @@ class ZoomControllerService(Node):
         super().__init__('camera_zoom_controller_service')
         self.logger = self.get_logger()
 
-        self.controller = ZoomController()
+        self.controller = ZoomController('/dev/kurokesu')
         self.controller.set_speed(default_zoom_speed)
         for side in ('left', 'right'):
             self.controller.homing(side)
