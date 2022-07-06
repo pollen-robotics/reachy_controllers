@@ -42,6 +42,7 @@ def get_reachy_model() -> str:
 
 def get_zuuu_model() -> str:
     """Find the configuration file for your mobile base.
+
     Refer to following link for details on how the identification is done:
     https://github.com/pollen-robotics/reachy_pyluos_hal/blob/main/reachy_pyluos_hal/tools/reachy_identify_model.py
     """
@@ -314,11 +315,10 @@ class JointStateController(Node):
                                 response: GetReachyModel.Response,
                                 ) -> GetReachyModel.Response:
         """Handle GetReachyModel service request."""
-        self.logger.info('Yo')
         response.reachy_model = get_reachy_model()
         response.zuuu_model = get_zuuu_model()
-        self.logger.info('Kook')
         return response
+
 
 def _val_to_pid_gain(values: List[float]) -> PidGains:
     gains = PidGains()
