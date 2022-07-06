@@ -75,6 +75,7 @@ class JointStateController(Node):
             - /set_joint_compliancy SetJointCompliancy
             - /set_joint_pid SetJointPID
             - /set_fan_state SetFanState
+            - /get_reachy_model GetReachyModel
         """
         super().__init__('joint_state_controller')
 
