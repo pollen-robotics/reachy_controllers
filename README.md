@@ -59,6 +59,8 @@ The callback of this topic uses [reachy_pyluos_hal](https://github.com/pollen-ro
 
 * **/set_fan_state** ([reachy_msgs/srv/SetFanState.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetFanState.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Set requested fans to requested state (on or off). 
 
+* **/get_reachy_model** ([reachy_msgs/srv/GetReachyModel.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/GetReachyModel.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Return the model of the Reachy used and the mobile base version, if a mobile base is connected to the robot. 
+
 
 ## Launch files
 
