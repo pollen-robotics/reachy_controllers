@@ -71,4 +71,4 @@ The callback of this topic uses [reachy_pyluos_hal](https://github.com/pollen-ro
 ---
 This package is part of the ROS2-based software release of the version 2021 of Reachy.
 
-Visit [pollen-robotics.com](https://pollen-robotics.com) to learn more or visit [our forum](https://forum.pollen-robotics.com) if you have any questions.
+Visit [pollen-robotics.com](https://pollen-robotics.com) to learn more or join our [Dicord community](https://discord.com/invite/Kg3mZHTKgs) if you have any questions or want to share your ideas.
