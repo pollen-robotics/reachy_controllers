@@ -22,9 +22,9 @@ class ZoomControllerService(Node):
 
         self.controller = ZoomController('/dev/kurokesu')
         self.controller.set_speed(default_zoom_speed)
-        for side in ('left', 'right'):
-            self.controller.homing(side)
-            self.controller.set_zoom_level(side, default_zoom_level)
+        # for side in ('left', 'right'):
+        #     self.controller.homing(side)
+        #     self.controller.set_zoom_level(side, default_zoom_level)
 
         self.current_zoom_info = {
             'left_eye': {
@@ -201,7 +201,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     zoom_controller_service = ZoomControllerService()
-    zoom_controller_service.start_autofocus()
+    # zoom_controller_service.start_autofocus()
     rclpy.spin(zoom_controller_service)
 
     rclpy.shutdown()
