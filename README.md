@@ -9,7 +9,7 @@ ROS2 package handling Reachy:
 
 **ROS2 Version: Foxy**
 
-Dependencies: [reachy_msgs](https://github.com/pollen-robotics/reachy_msgs), [reachy_pyluos_hal](https://github.com/pollen-robotics/reachy_pyluos_hal), [zoom_kurokesu](https://github.com/pollen-robotics/zoom_kurokesu)
+Dependencies: [reachy_msgs](https://github.com/pollen-robotics/reachy_msgs), [reachy_pyluos_hal](https://github.com/pollen-robotics/reachy_pyluos_hal), [zoom_kurokesu](https://github.com/pollen-robotics/zoom_kurokesu), [v4l2py](https://github.com/tiagocoutinho/v4l2py/blob/master/setup.py).
 
 How to install:
 
@@ -59,6 +59,8 @@ The callback of this topic uses [reachy_pyluos_hal](https://github.com/pollen-ro
 
 * **/set_fan_state** ([reachy_msgs/srv/SetFanState.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/SetFanState.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Set requested fans to requested state (on or off). 
 
+* **/get_reachy_model** ([reachy_msgs/srv/GetReachyModel.srv](https://github.com/pollen-robotics/reachy_msgs/blob/master/srv/GetReachyModel.srv))[[joint_state_controller](https://github.com/pollen-robotics/reachy_controllers/blob/master/reachy_controllers/joint_state_controller.py)] - Return the model of the Reachy used and the mobile base version, if a mobile base is connected to the robot. 
+
 
 ## Launch files
 
@@ -71,4 +73,4 @@ The callback of this topic uses [reachy_pyluos_hal](https://github.com/pollen-ro
 ---
 This package is part of the ROS2-based software release of the version 2021 of Reachy.
 
-Visit [pollen-robotics.com](https://pollen-robotics.com) to learn more or visit [our forum](https://forum.pollen-robotics.com) if you have any questions.
+Visit [pollen-robotics.com](https://pollen-robotics.com) to learn more or join our [Dicord community](https://discord.com/invite/Kg3mZHTKgs) if you have any questions or want to share your ideas.
