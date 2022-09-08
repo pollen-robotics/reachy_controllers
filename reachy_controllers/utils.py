@@ -1,4 +1,4 @@
-""""""
+"""Utils for camera publisher node."""
 from reachy_pyluos_hal.config import get_reachy_config
 
 
