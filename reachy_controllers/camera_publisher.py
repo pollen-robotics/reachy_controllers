@@ -17,13 +17,13 @@ from rclpy.node import Node
 
 from sensor_msgs.msg._compressed_image import CompressedImage
 
+from .utils import camera_config, get_camera_config
+
 
 class CameraPublisher(Node):
     """Camera Publisher class."""
 
     def __init__(self,
-                 left_port: str = '/dev/video4',
-                 right_port: str = '/dev/video0',
                  resolution: tuple = (640, 480),
                  fps: int = 30) -> None:
         """Connect to both cameras, initialize the publishers."""
@@ -31,14 +31,23 @@ class CameraPublisher(Node):
         self.logger = self.get_logger()
         self.clock = self.get_clock()
 
+        self.camera_model = get_camera_config()
+
+        if not self.camera_model:
+            self.logger.error("Invalid camera config in Reachy's configuration file")
+            return
+
+        self.left_port = camera_config[self.camera_model]['left']['video_port']
+        self.right_port = camera_config[self.camera_model]['right']['video_port']
+
         self.devices = {}
 
-        self.left_device = Device(left_port)
+        self.left_device = Device(self.left_port)
         self.left_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixel_format='MJPG')
         self.left_device.video_capture.set_fps(fps)
         self.devices['left'] = self.left_device
 
-        self.right_device = Device(right_port)
+        self.right_device = Device(self.right_port)
         self.right_device.video_capture.set_format(width=resolution[0], height=resolution[1], pixel_format='MJPG')
         self.right_device.video_capture.set_fps(fps)
         self.devices['right'] = self.right_device
@@ -60,10 +69,7 @@ class CameraPublisher(Node):
         def publisher(side):
             self.logger.info(f'{side.capitalize()} camera ready to publish!')
 
-            if side == 'right':
-                angle = '270'
-            else:
-                angle = '90'
+            angle = camera_config[self.camera_model][side]['rotation']
 
             for frame in self.devices[side]:
                 self.publish_img(side, self._rotate(frame, angle))
