@@ -33,7 +33,7 @@ from reachy_msgs.srv import SetJointCompliancy, SetJointPidGains
 
 
 # GRIPPER POS (for the right gripper)
-OPEN_POS = -0.87
+OPEN_POS = -0.85
 CLOSE_POS = 0.35
 
 MAX_TORQUE = 0.5
@@ -191,7 +191,7 @@ class GripperState:
         )
         
     def compute_fake_error_goal_position(self) -> float:
-        model_offset = np.deg2rad(14.0 * MAX_TORQUE + 0.178 / P_SAFE_CLOSE)
+        model_offset = np.deg2rad(3.0 * MAX_TORQUE + 0.05 / P_SAFE_CLOSE)
         if not self.is_direct:
             model_offset = -model_offset
 
@@ -339,6 +339,8 @@ class GrippersController(Node):
 
     def publish_pids(self):
         """Publish new PID requests for grippers."""
+        return
+    
         for name, gripper_state in self.gripper_states.items():
             if gripper_state.pid != self.last_grippers_pid[name]:
                 gains = PidGains()
@@ -348,11 +350,11 @@ class GrippersController(Node):
                 pid.name.append(name)
                 pid.pid_gain.append(gains)
 
-                resp = self.pid_gains_client.call(pid)
-                self.logger.info(f'PID gains {(gains.p, gains.i, gains.d)} set for "{name}" with resp "{resp.success}".')
+                # resp = self.pid_gains_client.call(pid)
+                # self.logger.info(f'PID gains {(gains.p, gains.i, gains.d)} set for "{name}" with resp "{resp.success}".')
 
-                if resp:
-                    self.last_grippers_pid[name] = gripper_state.pid
+                # if resp:
+                #     self.last_grippers_pid[name] = gripper_state.pid
 
 
 def main(args=None):
